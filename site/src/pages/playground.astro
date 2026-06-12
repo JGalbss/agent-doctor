@@ -1,0 +1,186 @@
+---
+const sample = `import { Effect, Schedule } from "effect"
+
+export const program = Effect.gen(function* () {
+  const value = yield Effect.succeed(1)
+  try {
+    yield* Effect.succeed(2)
+  } catch {
+    console.log("caught", Date.now())
+  }
+  Effect.runPromise(Effect.succeed(3))
+  return value
+})
+
+export const fetched = Effect.tryPromise({
+  try: () => fetch("https://api.example.com/data"),
+  catch: (cause) => ({ _tag: "FetchError", cause }),
+})
+
+export const backoff = Schedule.exponential(2000)
+
+export async function syncUsers(ids: string[]) {
+  for (const id of ids) {
+    await fetch(\`/users/\${id}\`).then((r) => r.json())
+  }
+}
+`
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>playground — effect doctor</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1><a href="/" class="home"><span class="accent">effect</span> doctor</a> <span class="slash">/</span> playground</h1>
+        <p class="tagline">The real linter, compiled to WebAssembly — paste Effect code, get the diagnosis live.</p>
+      </header>
+
+      <div class="toolbar">
+        <span class="score-box" id="score">—</span>
+        <label><input type="checkbox" id="v4" /> v4 rules</label>
+        <label><input type="checkbox" id="adopt" checked /> adopt mode (vanilla TS → Effect)</label>
+        <span class="status" id="status">loading wasm…</span>
+      </div>
+
+      <div class="split">
+        <textarea id="editor" spellcheck="false">{sample}</textarea>
+        <div id="results"><p class="muted">loading…</p></div>
+      </div>
+
+      <footer>
+        <p><a href="/">← all 89 rules</a> · <a href="https://github.com/JGalbss/effect-doctor">github</a></p>
+      </footer>
+    </main>
+
+    <script type="module">
+      import init, { lint } from "/pkg/effect_doctor_wasm.js"
+
+      const editor = document.getElementById("editor")
+      const results = document.getElementById("results")
+      const scoreBox = document.getElementById("score")
+      const status = document.getElementById("status")
+      const v4 = document.getElementById("v4")
+      const adopt = document.getElementById("adopt")
+
+      const escapeHtml = (text) =>
+        text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c])
+
+      const render = () => {
+        const report = JSON.parse(lint(editor.value, v4.checked, adopt.checked))
+        const { diagnostics, score } = report
+        scoreBox.textContent = `${score.score}/100`
+        scoreBox.className = `score-box ${score.score >= 75 ? "good" : score.score >= 50 ? "ok" : "bad"}`
+        status.textContent = `${diagnostics.length} finding${diagnostics.length === 1 ? "" : "s"}`
+        if (diagnostics.length === 0) {
+          results.innerHTML = `<p class="clean">✓ clean — no findings</p>`
+          return
+        }
+        results.innerHTML = diagnostics
+          .map(
+            (d) => `
+          <div class="finding ${d.severity}">
+            <div class="finding-head">
+              <span class="loc">${d.line}:${d.column}</span>
+              <span class="rule-id">${escapeHtml(d.rule)}</span>
+              <span class="sev ${d.severity}">${d.severity}</span>
+            </div>
+            <p class="msg">${escapeHtml(d.message)}</p>
+            <p class="hint">${escapeHtml(d.help)}</p>
+          </div>`
+          )
+          .join("")
+      }
+
+      let timer
+      const schedule = () => {
+        clearTimeout(timer)
+        timer = setTimeout(render, 150)
+      }
+
+      await init()
+      status.textContent = "ready"
+      render()
+      editor.addEventListener("input", schedule)
+      v4.addEventListener("change", render)
+      adopt.addEventListener("change", render)
+    </script>
+
+    <style is:global>
+      :root {
+        --bg: #0a0d13; --panel: #0f131c; --panel-2: #0c1018; --border: #1c2330;
+        --grid: rgba(126, 226, 168, 0.035);
+        --text: #d6dbe7; --muted: #7d8799; --accent: #7ee2a8;
+        --error: #ff6b6b; --warn: #ffc857; --info: #6ab7ff;
+      }
+      * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+      *::-webkit-scrollbar { height: 6px; width: 6px; }
+      *::-webkit-scrollbar-track { background: transparent; }
+      *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+      body {
+        margin: 0; background: var(--bg);
+        background-image:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 40px 40px;
+        color: var(--text);
+        font: 15px/1.6 ui-sans-serif, system-ui, sans-serif;
+      }
+      main { max-width: 1200px; margin: 0 auto; padding: 40px 24px 64px; }
+      a { color: var(--accent); text-decoration: none; }
+      header { margin-bottom: 20px; }
+      h1 { font-size: 26px; margin: 0 0 4px; }
+      .home { color: var(--text); }
+      .accent { color: var(--accent); }
+      .slash { color: var(--muted); font-weight: 400; }
+      .tagline { color: var(--muted); margin: 0; }
+
+      .toolbar {
+        display: flex; align-items: center; gap: 18px;
+        background: var(--panel); border: 1px solid var(--border); border-bottom: none;
+        padding: 10px 16px; font-size: 13px;
+      }
+      .toolbar label { color: var(--muted); display: flex; gap: 6px; align-items: center; cursor: pointer; }
+      .toolbar input { accent-color: var(--accent); }
+      .score-box {
+        font: 700 15px ui-monospace, Menlo, monospace;
+        padding: 3px 12px; border: 1px solid var(--border); background: var(--panel-2);
+      }
+      .score-box.good { color: var(--accent); }
+      .score-box.ok { color: var(--warn); }
+      .score-box.bad { color: var(--error); }
+      .status { margin-left: auto; color: var(--muted); }
+
+      .split {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+        border: 1px solid var(--border); height: 70vh;
+      }
+      @media (max-width: 900px) { .split { grid-template-columns: 1fr; height: auto; } }
+      #editor {
+        background: var(--panel-2); color: var(--text);
+        border: none; border-right: 1px solid var(--border);
+        resize: none; outline: none; padding: 16px;
+        font: 13px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
+        white-space: pre; min-height: 50vh;
+      }
+      #results { overflow-y: auto; background: var(--panel); }
+      .finding { border-bottom: 1px solid var(--border); padding: 12px 16px; }
+      .finding-head { display: flex; gap: 10px; align-items: center; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+      .loc { color: var(--muted); }
+      .rule-id { font-weight: 600; }
+      .sev { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 8px; border: 1px solid var(--border); }
+      .sev.error { color: var(--error); }
+      .sev.warn { color: var(--warn); }
+      .sev.info { color: var(--info); }
+      .msg { margin: 6px 0 4px; font-size: 13.5px; }
+      .hint { margin: 0; color: var(--muted); font-size: 12.5px; }
+      .clean { color: var(--accent); padding: 24px; font-family: ui-monospace, Menlo, monospace; }
+      .muted { color: var(--muted); padding: 24px; }
+      footer { margin-top: 24px; color: var(--muted); font-size: 14px; }
+    </style>
+  </body>
+</html>

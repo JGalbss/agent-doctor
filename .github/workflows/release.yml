@@ -1,0 +1,103 @@
+# Publish to npm on tag push (v*): per-platform binary packages + the
+# `effect-doctor` launcher package. Requires the NPM_TOKEN repo secret.
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+            npm: effect-doctor-darwin-arm64
+            node_os: darwin
+            node_arch: arm64
+          - target: x86_64-apple-darwin
+            os: macos-13
+            npm: effect-doctor-darwin-x64
+            node_os: darwin
+            node_arch: x64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            npm: effect-doctor-linux-x64
+            node_os: linux
+            node_arch: x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            npm: effect-doctor-linux-arm64
+            node_os: linux
+            node_arch: arm64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            npm: effect-doctor-win32-x64
+            node_os: win32
+            node_arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release -p effect-doctor --target ${{ matrix.target }}
+      - name: Assemble platform package
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG="npm-staging/${{ matrix.npm }}"
+          mkdir -p "$PKG/bin"
+          BIN=effect-doctor; [ "${{ matrix.node_os }}" = "win32" ] && BIN=effect-doctor.exe
+          cp "target/${{ matrix.target }}/release/$BIN" "$PKG/bin/$BIN"
+          cat > "$PKG/package.json" << EOF
+          {
+            "name": "${{ matrix.npm }}",
+            "version": "$VERSION",
+            "description": "effect-doctor binary for ${{ matrix.node_os }}-${{ matrix.node_arch }}",
+            "license": "MIT",
+            "repository": { "type": "git", "url": "git+https://github.com/JGalbss/effect-doctor.git" },
+            "os": ["${{ matrix.node_os }}"],
+            "cpu": ["${{ matrix.node_arch }}"],
+            "files": ["bin"]
+          }
+          EOF
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Publish platform package
+        shell: bash
+        run: cd npm-staging/${{ matrix.npm }} && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-launcher:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Sync version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd npm/effect-doctor
+          node -e "
+            const fs = require('fs')
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+            pkg.version = '$VERSION'
+            for (const dep of Object.keys(pkg.optionalDependencies)) {
+              pkg.optionalDependencies[dep] = '$VERSION'
+            }
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n')
+          "
+      - name: Publish effect-doctor
+        run: cd npm/effect-doctor && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

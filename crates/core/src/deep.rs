@@ -73,7 +73,7 @@ pub fn run_language_service(root: &Path) -> Result<Vec<Diagnostic>, String> {
                 .strip_prefix(&root_display)
                 .map(|stripped| stripped.trim_start_matches('/').to_string())
                 .unwrap_or(diagnostic.file);
-            let file_context = crate::engine::classify_file(&file);
+            let file_context = crate::lint::classify_file(&file);
             Diagnostic {
                 rule: static_rule_id(&diagnostic.name),
                 severity: map_severity(&diagnostic.severity),
