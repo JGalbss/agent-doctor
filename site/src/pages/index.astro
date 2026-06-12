@@ -1,5 +1,6 @@
 ---
 import { Code } from "astro:components"
+import Meta from "../components/Meta.astro"
 import rules from "../data/rules.json"
 
 const categories = [...new Set(rules.map((rule) => rule.category))]
@@ -16,12 +17,9 @@ const counts = {
 
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>effect doctor — health checks for Effect TS codebases</title>
-    <meta
-      name="description"
-      content={`${rules.length} rules that catch Effect TS anti-patterns — with the cleaner rewrite for every one. Rust-fast: thousands of files in milliseconds.`}
+    <Meta
+      title="effect doctor — health checks for Effect TS codebases"
+      description={`${rules.length} rules that catch Effect TS anti-patterns — with the cleaner rewrite for every one. Rust-fast: thousands of files in milliseconds.`}
     />
   </head>
   <body>

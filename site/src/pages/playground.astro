@@ -1,4 +1,6 @@
 ---
+import Meta from "../components/Meta.astro"
+
 const sample = `import { Effect, Schedule } from "effect"
 
 export const program = Effect.gen(function* () {
@@ -29,9 +31,10 @@ export async function syncUsers(ids: string[]) {
 
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>playground — effect doctor</title>
+    <Meta
+      title="playground — effect doctor"
+      description="Run the real effect-doctor linter in your browser (WebAssembly). Paste Effect TS code, get the score and the cleaner rewrites live."
+    />
   </head>
   <body>
     <main>

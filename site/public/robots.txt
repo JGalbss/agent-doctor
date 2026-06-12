@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://effect-doctor.dev/sitemap-index.xml

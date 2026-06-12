@@ -14,5 +14,9 @@
     "astro": "^5",
     "codemirror": "^6.0.2",
     "prettier": "^3.8.4"
+  },
+  "devDependencies": {
+    "@astrojs/sitemap": "^3.7.3",
+    "@resvg/resvg-js": "^2.6.2"
   }
 }
