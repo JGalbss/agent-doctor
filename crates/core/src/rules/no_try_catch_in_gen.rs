@@ -1,6 +1,7 @@
 use oxc_ast::ast::TryStatement;
 
 use crate::diagnostics::{Category, RuleMeta, Severity};
+use crate::matchers::block_has_own_yield;
 use crate::rules::{FileCtx, Rule};
 
 static META: RuleMeta = RuleMeta {
@@ -10,6 +11,13 @@ static META: RuleMeta = RuleMeta {
     help: "Effect failures do not throw — they flow through the typed error channel, so the catch block is dead code for them. Handle failures with Effect.catchTag / Effect.catch.",
 };
 
+static TRY_FINALLY: RuleMeta = RuleMeta {
+    id: "no-try-finally-in-gen",
+    severity: Severity::Warn,
+    category: Category::Correctness,
+    help: "try/finally around yields is not interruption-safe — the finalizer can be skipped if the fiber is interrupted. Use Effect.ensuring, Effect.acquireRelease, or Effect.race.",
+};
+
 pub struct NoTryCatchInGen;
 
 impl Rule for NoTryCatchInGen {
@@ -17,10 +25,25 @@ impl Rule for NoTryCatchInGen {
         if !ctx.in_effect_gen() {
             return;
         }
+        let keyword_span = oxc_span::Span::new(try_stmt.span.start, try_stmt.span.start + 3);
+        if try_stmt.handler.is_some() {
+            ctx.report(
+                &META,
+                keyword_span,
+                "try/catch inside Effect.gen — Effect failures will not be caught here".to_string(),
+            );
+            return;
+        }
+        let Some(finalizer) = &try_stmt.finalizer else {
+            return;
+        };
+        if !block_has_own_yield(&try_stmt.block) && !block_has_own_yield(finalizer) {
+            return;
+        }
         ctx.report(
-            &META,
-            oxc_span::Span::new(try_stmt.span.start, try_stmt.span.start + 3),
-            "try/catch inside Effect.gen — Effect failures will not be caught here".to_string(),
+            &TRY_FINALLY,
+            keyword_span,
+            "try/finally with yields inside Effect.gen is not interruption-safe — use Effect.ensuring / acquireRelease".to_string(),
         );
     }
 }

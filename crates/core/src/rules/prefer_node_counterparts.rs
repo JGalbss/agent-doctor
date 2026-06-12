@@ -15,6 +15,7 @@ fn platform_counterpart(source: &str) -> Option<&'static str> {
         "node:fs" | "fs" | "node:fs/promises" | "fs/promises" => Some("FileSystem"),
         "node:path" | "path" => Some("Path"),
         "node:child_process" | "child_process" => Some("Command"),
+        "node:http" | "http" | "node:https" | "https" => Some("HttpServer/HttpClient"),
         _ => None,
     }
 }

@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
-    ArrowFunctionExpression, CallExpression, Class, Function, ImportDeclaration, NewExpression,
-    StaticMemberExpression, TaggedTemplateExpression, ThrowStatement, TryStatement,
-    YieldExpression,
+    ArrowFunctionExpression, BinaryExpression, CallExpression, Class, Function, ImportDeclaration,
+    NewExpression, StaticMemberExpression, SwitchStatement, TaggedTemplateExpression,
+    ThrowStatement, TryStatement, YieldExpression,
 };
 use oxc_span::Span;
 
@@ -9,8 +9,18 @@ use crate::diagnostics::{RawDiagnostic, RuleMeta};
 use crate::effect_imports::EffectImports;
 
 mod catch_idioms;
+mod composition_limits;
+mod concurrency_idioms;
+mod equality_idioms;
+mod error_modeling;
 mod globals_in_effect;
 mod idiom_shortcuts;
+mod literal_idioms;
+mod logging_security;
+mod map_misuse;
+mod promise_interop;
+mod run_sync_async;
+mod stream_hygiene;
 mod meaningful_span_names;
 mod no_chained_provides;
 mod no_effect_do;
@@ -112,6 +122,8 @@ pub trait Rule: Sync {
     fn on_call(&self, _call: &CallExpression<'_>, _ctx: &mut FileCtx) {}
     fn on_new(&self, _new: &NewExpression<'_>, _ctx: &mut FileCtx) {}
     fn on_member(&self, _member: &StaticMemberExpression<'_>, _ctx: &mut FileCtx) {}
+    fn on_binary(&self, _binary: &BinaryExpression<'_>, _ctx: &mut FileCtx) {}
+    fn on_switch(&self, _switch_stmt: &SwitchStatement<'_>, _ctx: &mut FileCtx) {}
     fn on_yield(&self, _yield_expr: &YieldExpression<'_>, _ctx: &mut FileCtx) {}
     fn on_try(&self, _try_stmt: &TryStatement<'_>, _ctx: &mut FileCtx) {}
     fn on_throw(&self, _throw_stmt: &ThrowStatement<'_>, _ctx: &mut FileCtx) {}
@@ -130,6 +142,16 @@ pub static RULES: &[&(dyn Rule + Send + Sync)] = &[
     &no_throw_in_effect::NoThrowInEffect,
     &no_run_inside_effect::NoRunInsideEffect,
     &schema_class_hygiene::SchemaClassHygiene,
+    &promise_interop::PromiseInterop,
+    &run_sync_async::NoRunSyncOnAsync,
+    &map_misuse::NoMapReturningEffect,
+    &stream_hygiene::StreamHygiene,
+    &equality_idioms::EqualityIdioms,
+    &error_modeling::ErrorModeling,
+    &concurrency_idioms::ConcurrencyIdioms,
+    &literal_idioms::LiteralIdioms,
+    &logging_security::LoggingSecurity,
+    &composition_limits::CompositionLimits,
     // idiomatic
     &no_unnecessary_gen::NoUnnecessaryGen,
     &no_unnecessary_fail::NoUnnecessaryFail,

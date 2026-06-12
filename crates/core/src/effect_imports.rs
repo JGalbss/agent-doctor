@@ -33,12 +33,12 @@ impl EffectImports {
             for specifier in specifiers {
                 match specifier {
                     ImportDeclarationSpecifier::ImportSpecifier(named) => {
-                        if source == "effect" {
-                            imports.locals.insert(
-                                named.local.name.to_string(),
-                                export_name(&named.imported).to_string(),
-                            );
-                        }
+                        // Named imports from any effect package expose module
+                        // namespaces (Effect, Stream, HttpServerResponse, ...).
+                        imports.locals.insert(
+                            named.local.name.to_string(),
+                            export_name(&named.imported).to_string(),
+                        );
                     }
                     ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace) => {
                         if let Some(module) = effect_submodule(source) {

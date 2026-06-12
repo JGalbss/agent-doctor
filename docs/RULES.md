@@ -143,3 +143,30 @@ All AST-matchable by name + import provenance; profile-gated (only fire for v4 t
 Following react-doctor: every diagnostic carries surfaces (`cli`, `prComment`, `score`,
 `ciFailure`). Style/info rules can be CLI-only so they never tank the score. Score counts
 distinct rules fired, not occurrences.
+
+## EffectPatterns corpus additions (implemented June 2026)
+
+Mined from references/effect-patterns (304 community patterns). Implemented:
+
+- **Promise interop (correctness)**: `no-async-callback-in-effect-combinators` (error),
+  `no-then-in-sync`, `no-promise-all-in-effect`, `require-typed-catch-in-try` (info)
+- **Runtime**: `no-runsync-on-async-effect` (error) — runSync over promise/sleep/delay/async/never
+- **Map misuse**: `no-map-returning-effect` (warn) — Effect<Effect<A>>, inner never runs
+- **Streams**: `no-runcollect-on-infinite-stream` (error), `no-eager-chunk-stream`,
+  `stream-mapeffect-missing-concurrency`, `prefer-queue-bounded`
+- **Gen hygiene**: `no-try-finally-in-gen` (warn) — not interruption-safe
+- **Equality**: `no-object-literal-comparison` (warn), `no-tag-string-comparison` (warn,
+  builtin tags → predicates), `prefer-match-over-tag-switch` (info)
+- **Error modeling**: `no-string-errors` (warn), `no-catchall-to-null` (warn)
+- **Concurrency**: `effect-all-missing-concurrency` (info), `prefer-timeout-over-race-sleep`
+  (warn), `no-fork-then-immediate-join` (warn)
+- **Literals**: `prefer-duration-over-raw-millis` (info), `prefer-succeed-over-sync-literal` (info)
+- **Security/logging**: `prefer-config-redacted` (warn), `prefer-structured-logging-args`
+  (info), `prefer-json-response-helper` (warn)
+- **Composition**: `avoid-long-combinator-chains` (info), `no-layer-mergeall-megalist` (info)
+- Extended `prefer-node-effect-counterparts` with node:http/https
+
+Deferred (FP-prone heuristics, need guards/config): no-provide-in-loop,
+prefer-runmain-for-servers, mutable-shared-state-in-effect,
+no-manual-resource-release-in-gen, prefer-rundrain-for-discarded-collect,
+layer-toruntime (prefer-managed-runtime).

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use oxc_ast::ast::{
-    ArrowFunctionExpression, CallExpression, Class, Expression, Function, ImportDeclaration,
-    NewExpression, Program, StaticMemberExpression, TaggedTemplateExpression, ThrowStatement,
-    TryStatement, YieldExpression,
+    ArrowFunctionExpression, BinaryExpression, CallExpression, Class, Expression, Function,
+    ImportDeclaration, NewExpression, Program, StaticMemberExpression, SwitchStatement,
+    TaggedTemplateExpression, ThrowStatement, TryStatement, YieldExpression,
 };
 use oxc_ast_visit::{walk, Visit};
 use oxc_syntax::scope::ScopeFlags;
@@ -107,6 +107,20 @@ impl<'a> Visit<'a> for Runner {
             rule.on_throw(throw_stmt, &mut self.ctx);
         }
         walk::walk_throw_statement(self, throw_stmt);
+    }
+
+    fn visit_binary_expression(&mut self, binary: &BinaryExpression<'a>) {
+        for rule in self.rules() {
+            rule.on_binary(binary, &mut self.ctx);
+        }
+        walk::walk_binary_expression(self, binary);
+    }
+
+    fn visit_switch_statement(&mut self, switch_stmt: &SwitchStatement<'a>) {
+        for rule in self.rules() {
+            rule.on_switch(switch_stmt, &mut self.ctx);
+        }
+        walk::walk_switch_statement(self, switch_stmt);
     }
 
     fn visit_static_member_expression(&mut self, member: &StaticMemberExpression<'a>) {

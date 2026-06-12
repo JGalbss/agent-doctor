@@ -1,7 +1,9 @@
 use oxc_ast::ast::{
-    Argument, ArrowFunctionExpression, CallExpression, Expression, Function, Statement,
-    StaticMemberExpression,
+    Argument, ArrowFunctionExpression, BlockStatement, CallExpression, Expression, Function,
+    NewExpression, Statement, StaticMemberExpression,
 };
+use oxc_ast_visit::{walk, Visit};
+use oxc_syntax::scope::ScopeFlags;
 
 use crate::effect_imports::EffectImports;
 
@@ -101,6 +103,129 @@ pub fn first_function_arg<'a, 'b>(
                 Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_)
             )
         })
+}
+
+/// Is the function-ish expression declared `async`?
+pub fn is_async_function(expr: &Expression) -> bool {
+    match expr {
+        Expression::ArrowFunctionExpression(arrow) => arrow.r#async,
+        Expression::FunctionExpression(function) => function.r#async,
+        _ => false,
+    }
+}
+
+struct CallSearch<'p, 'a> {
+    found: bool,
+    pred: &'p mut dyn FnMut(&CallExpression<'a>) -> bool,
+}
+
+impl<'a> Visit<'a> for CallSearch<'_, 'a> {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if self.found {
+            return;
+        }
+        if (self.pred)(call) {
+            self.found = true;
+            return;
+        }
+        walk::walk_call_expression(self, call);
+    }
+}
+
+/// Does any call expression in the subtree satisfy the predicate?
+pub fn expression_has_call<'a>(
+    expr: &Expression<'a>,
+    mut pred: impl FnMut(&CallExpression<'a>) -> bool,
+) -> bool {
+    let mut search = CallSearch {
+        found: false,
+        pred: &mut pred,
+    };
+    search.visit_expression(expr);
+    search.found
+}
+
+struct NewSearch<'p, 'a> {
+    found: bool,
+    pred: &'p mut dyn FnMut(&NewExpression<'a>) -> bool,
+}
+
+impl<'a> Visit<'a> for NewSearch<'_, 'a> {
+    fn visit_new_expression(&mut self, new_expr: &NewExpression<'a>) {
+        if self.found {
+            return;
+        }
+        if (self.pred)(new_expr) {
+            self.found = true;
+            return;
+        }
+        walk::walk_new_expression(self, new_expr);
+    }
+}
+
+/// Does any `new` expression in the subtree satisfy the predicate?
+pub fn expression_has_new<'a>(
+    expr: &Expression<'a>,
+    mut pred: impl FnMut(&NewExpression<'a>) -> bool,
+) -> bool {
+    let mut search = NewSearch {
+        found: false,
+        pred: &mut pred,
+    };
+    search.visit_expression(expr);
+    search.found
+}
+
+struct OwnYieldSearch {
+    found: bool,
+}
+
+impl<'a> Visit<'a> for OwnYieldSearch {
+    fn visit_yield_expression(&mut self, _yield_expr: &oxc_ast::ast::YieldExpression<'a>) {
+        self.found = true;
+    }
+    // Yields inside nested functions belong to those generators, not this one.
+    fn visit_function(&mut self, _function: &Function<'a>, _flags: ScopeFlags) {}
+    fn visit_arrow_function_expression(&mut self, _arrow: &ArrowFunctionExpression<'a>) {}
+}
+
+/// Does the block contain a `yield` belonging to the enclosing generator
+/// (not one inside a nested function)?
+pub fn block_has_own_yield(block: &BlockStatement) -> bool {
+    let mut search = OwnYieldSearch { found: false };
+    search.visit_block_statement(block);
+    search.found
+}
+
+/// The body expression of a handler: concise arrow body, or the argument of a
+/// lone `return` in a block body.
+pub fn function_result_expression<'a, 'b>(
+    handler: &'b Expression<'a>,
+) -> Option<&'b Expression<'a>> {
+    match handler {
+        Expression::ArrowFunctionExpression(arrow) => {
+            if let Some(body) = arrow_body_expression(arrow) {
+                return Some(body);
+            }
+            single_return_expression(&arrow.body.statements)
+        }
+        Expression::FunctionExpression(function) => {
+            single_return_expression(&function.body.as_ref()?.statements)
+        }
+        _ => None,
+    }
+}
+
+fn single_return_expression<'a, 'b>(
+    statements: &'b [Statement<'a>],
+) -> Option<&'b Expression<'a>> {
+    if statements.len() != 1 {
+        return None;
+    }
+    let Statement::ReturnStatement(return_stmt) = &statements[0] else {
+        return None;
+    };
+    return_stmt.argument.as_ref().map(unwrap_parens)
 }
 
 fn is_gen_like(prop: &str) -> bool {

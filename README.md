@@ -26,9 +26,11 @@ cargo build --release
 
 ## Status
 
-Early but real: **33 rules live** across correctness, idiomatic, architecture,
-performance, and v4-migration categories, with an integration-test suite covering every
-rule (bad patterns fire, clean code stays silent). The full ~90-rule spec is in
+Early but real: **59 rules live** across correctness, idiomatic, architecture,
+performance, and v4-migration categories, with 117 integration tests covering every rule
+(bad patterns fire, clean code stays silent). Rule sources: the Effect-TS skills repo,
+the @effect/language-service diagnostic catalog, the effect-smol v4 MIGRATION guide, and
+the EffectPatterns community corpus (304 patterns). The full spec is in
 [docs/RULES.md](docs/RULES.md); architecture and roadmap in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
