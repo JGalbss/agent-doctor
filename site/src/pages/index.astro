@@ -34,8 +34,8 @@ const counts = {
           Scan your Effect TS codebase, get a score, fix what matters. {rules.length} rules,
           every one with the cleaner rewrite. Rust-fast — thousands of files in milliseconds.
         </p>
-        <pre class="install">npx @jgalbsss/agent-doctor <span class="dim"># or: agent-doctor --scope lines  (just your PR)</span><button class="copy" id="copy-install" title="Copy npx @jgalbsss/agent-doctor" aria-label="Copy">⧉</button></pre>
-        <p class="playground-link"><a href="/playground">▶ try it in the playground</a> · <a href="/toolkit">⚙ the agent toolkit</a></p>
+        <pre class="install">npx @jgalbsss/agent-doctor <span class="dim"># or: agent-doctor --scope lines  (just your PR)</span><button class="copy" id="copy-install" title="Copy npx @jgalbsss/agent-doctor" aria-label="Copy">copy</button></pre>
+        <p class="playground-link"><a href="/playground">try it in the playground</a> · <a href="/toolkit">the agent toolkit</a></p>
         <div class="legend">
           <span class="sev error">{counts.error} errors</span>
           <span class="sev warn">{counts.warn} warnings</span>
@@ -71,11 +71,11 @@ const counts = {
               {rule.bad && rule.good && (
                 <div class="compare">
                   <div class="pane bad">
-                    <span class="pane-label">✖ instead of</span>
+                    <span class="pane-label">instead of</span>
                     <Code code={rule.bad} lang="ts" theme="github-dark-default" />
                   </div>
                   <div class="pane good">
-                    <span class="pane-label">✓ write</span>
+                    <span class="pane-label">write</span>
                     <Code code={rule.good} lang="ts" theme="github-dark-default" />
                   </div>
                 </div>
@@ -118,10 +118,10 @@ const counts = {
       const copyButton = document.getElementById("copy-install")
       copyButton.addEventListener("click", async () => {
         await navigator.clipboard.writeText("npx @jgalbsss/agent-doctor")
-        copyButton.textContent = "✓"
+        copyButton.textContent = "copied"
         copyButton.classList.add("copied")
         setTimeout(() => {
-          copyButton.textContent = "⧉"
+          copyButton.textContent = "copy"
           copyButton.classList.remove("copied")
         }, 1200)
       })

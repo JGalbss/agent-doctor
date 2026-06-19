@@ -46,8 +46,8 @@ export async function syncUsers(ids: string[]) {
       <div class="toolbar">
         <span class="score-box" id="score">—</span>
         <label><input type="checkbox" id="v4" /> v4 rules</label>
-        <label><input type="checkbox" id="adopt" checked /> adopt mode (vanilla TS → Effect)</label>
-        <button class="tool" id="format" title="Prettier (⌘S)">format</button>
+        <label><input type="checkbox" id="adopt" checked /> adopt mode (vanilla TS  to  Effect)</label>
+        <button class="tool" id="format" title="Prettier (Cmd-S)">format</button>
         <button class="tool" id="share" title="Copy a link to this code">share</button>
         <button class="tool" id="reset" title="Restore the sample">reset</button>
         <span class="status" id="status">loading wasm…</span>
@@ -59,7 +59,7 @@ export async function syncUsers(ids: string[]) {
       </div>
 
       <footer>
-        <p><a href="/">← all 101 rules</a> · <a href="https://github.com/JGalbss/agent-doctor">github</a> · <span class="muted">autosaves locally · ⌘S formats</span></p>
+        <p><a href="/">← all 101 rules</a> · <a href="https://github.com/JGalbss/agent-doctor">github</a> · <span class="muted">autosaves locally · Cmd-S formats</span></p>
       </footer>
     </main>
 
@@ -107,7 +107,7 @@ export async function syncUsers(ids: string[]) {
         scoreBox.className = `score-box ${score.score >= 75 ? "good" : score.score >= 50 ? "ok" : "bad"}`
         status.textContent = `${diagnostics.length} finding${diagnostics.length === 1 ? "" : "s"}`
         if (diagnostics.length === 0) {
-          results.innerHTML = `<p class="clean">✓ clean — no findings</p>`
+          results.innerHTML = `<p class="clean">clean — no findings</p>`
           return
         }
         results.innerHTML = diagnostics
@@ -128,7 +128,7 @@ export async function syncUsers(ids: string[]) {
 
       const persist = () => {
         localStorage.setItem(STORAGE_KEY, code())
-        status.textContent = "saved ✓"
+        status.textContent = "saved "
       }
 
       let timer
@@ -166,7 +166,7 @@ export async function syncUsers(ids: string[]) {
             printWidth: 90,
           })
           setCode(formatted)
-          status.textContent = "formatted ✓"
+          status.textContent = "formatted "
         } catch (error) {
           status.textContent = `format failed: syntax error`
         }
@@ -182,7 +182,7 @@ export async function syncUsers(ids: string[]) {
         const url = `${location.origin}${location.pathname}#${hash}`
         history.replaceState(null, "", `#${hash}`)
         await navigator.clipboard.writeText(url)
-        event.target.textContent = "copied ✓"
+        event.target.textContent = "copied "
         setTimeout(() => (event.target.textContent = "share"), 1200)
       })
       document.addEventListener("keydown", (event) => {

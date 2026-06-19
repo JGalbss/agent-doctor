@@ -211,12 +211,12 @@ fn run_explain(rule_id: &str) -> ExitCode {
     println!("  {}", meta.help);
     if let Some(example) = example_for(rule_id) {
         println!();
-        println!("  {}✖ instead of{}", p.red, p.reset);
+        println!("  {}instead of{}", p.red, p.reset);
         for line in example.bad.lines() {
             println!("    {}{}{}", p.dim, line, p.reset);
         }
         println!();
-        println!("  {}✓ write{}", p.green, p.reset);
+        println!("  {}write{}", p.green, p.reset);
         for line in example.good.lines() {
             println!("    {line}");
         }
@@ -317,7 +317,7 @@ fn run_impact(
     let p = palette();
     println!();
     println!(
-        "  {}impact{}  {}{} changed file{} → {} test{} to run{}",
+        "  {}impact{}  {}{} changed file{} -> {} test{} to run{}",
         p.bold,
         p.reset,
         p.dim,
@@ -336,7 +336,7 @@ fn run_impact(
     }
     for caveat in &result.caveats {
         println!();
-        println!("  {}⚠ {}{}", p.yellow, caveat, p.reset);
+        println!("  {}warning: {}{}", p.yellow, caveat, p.reset);
     }
     println!();
     ExitCode::SUCCESS
@@ -402,12 +402,12 @@ fn run_gate(
     let p = palette();
     println!();
     if violations.is_empty() {
-        println!("  {}✓ gate passed{} — no policy violations", p.green, p.reset);
+        println!("  {}gate passed{} — no policy violations", p.green, p.reset);
         println!();
         return ExitCode::SUCCESS;
     }
     println!(
-        "  {}✖ gate failed{} — {} violation{}",
+        "  {}gate failed{} — {} violation{}",
         p.red,
         p.reset,
         violations.len(),
@@ -472,14 +472,14 @@ fn run_merge(
     let p = palette();
     if result.is_clean() {
         eprintln!(
-            "  {}✓ merged cleanly{}{}",
+            "  {}merged cleanly{}{}",
             p.green,
             p.reset,
             if result.fell_back { " (line fallback)" } else { "" }
         );
     } else {
         eprintln!(
-            "  {}✖ {} conflict{}{} — markers written to {}",
+            "  {}{} conflict{}{} — markers written to {}",
             p.red,
             result.conflicts.len(),
             plural(result.conflicts.len()),
@@ -584,15 +584,15 @@ fn run_init(root: &std::path::Path, force: bool) -> ExitCode {
 fn write_scaffold(root: &std::path::Path, relative: &str, contents: &str, force: bool, p: &Palette) {
     let path = root.join(relative);
     if path.exists() && !force {
-        println!("    {}• {} (exists, skipped){}", p.dim, relative, p.reset);
+        println!("    {}skip{} {} (exists)", p.dim, p.reset, relative);
         return;
     }
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
     match std::fs::write(&path, contents) {
-        Ok(()) => println!("    {}✓{} {}", p.green, p.reset, relative),
-        Err(error) => println!("    {}✗{} {} ({error})", p.red, p.reset, relative),
+        Ok(()) => println!("    {}wrote{} {}", p.green, p.reset, relative),
+        Err(error) => println!("    {}error{} {} ({error})", p.red, p.reset, relative),
     }
 }
 

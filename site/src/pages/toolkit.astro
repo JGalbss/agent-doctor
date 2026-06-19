@@ -2,12 +2,12 @@
 import Meta from "../components/Meta.astro"
 
 const layers = [
-  { tag: "kernel", title: "Semantic kernel", body: "Content-addressed index of every TypeScript file — symbol graph, dependency edges, structural fingerprints. Warm and incremental: re-parse one file in ~25µs." },
+  { tag: "kernel", title: "Code index", body: "Content-addressed index of every TypeScript file: parse once, build a symbol graph, dependency edges, and structural fingerprints. Warm and incremental: re-parse one file in ~25µs." },
   { tag: "L1", title: "Policy / gate", body: "ACL, architecture layering, protected paths, and region leases. A diff that breaks the rules is denied deterministically — exit non-zero. Same gate for humans, agents, and CI." },
   { tag: "L2", title: "Impact test selection", body: "Which tests transitively reach a change, from the import graph. Turns “run 3000 tests” into “run the 12 that matter” — sub-µs once warm." },
   { tag: "L3", title: "Semantic merge", body: "AST-level 3-way merge. Two agents adding different functions to the same file merge with zero conflict; only edits to the same declaration conflict. Drops in as a git merge driver." },
   { tag: "L4", title: "Context server", body: "A warm kernel answering queries over stdio — plain JSON or MCP. The agent pulls ground truth (does this helper exist? what tests cover this?) instead of grepping." },
-  { tag: "L5", title: "Orchestrator", body: "The deterministic runner: lease → assemble context → run the agent → gate → retry with the exact findings. The agent is the only nondeterministic step; everything around it is enforced." },
+  { tag: "L5", title: "Orchestrator", body: "The deterministic runner: lease, assemble context, run the agent, gate, then retry with the exact findings. The agent is the only nondeterministic step; everything around it is enforced." },
   { tag: "L6", title: "Agent-native VCS", body: "A content-addressed operation log with per-agent/per-task attribution and deterministic undo, first-class leases, and semantic merge — our model on a git-compatible backend." },
 ]
 
@@ -43,9 +43,9 @@ const latency = [
           coordination, determinism — not <b>judgment</b> a smarter model already does well.
         </p>
         <p class="links">
-          <a href="https://github.com/JGalbss/agent-doctor/blob/main/docs/TOOLKIT.md">design ↗</a>
-          <a href="https://github.com/JGalbss/agent-doctor/blob/main/docs/PLAN.md">build plan ↗</a>
-          <a href="/">← rule catalog</a>
+          <a href="https://github.com/JGalbss/agent-doctor/blob/main/docs/TOOLKIT.md">design</a>
+          <a href="https://github.com/JGalbss/agent-doctor/blob/main/docs/PLAN.md">build plan</a>
+          <a href="/">rule catalog</a>
         </p>
       </header>
 
@@ -61,14 +61,14 @@ const latency = [
 
       <section class="block">
         <h2>The loop</h2>
-        <pre class="loop">{`orchestrator: decompose → lease disjoint regions
-  └─ per task (parallel):
-       assemble minimal context (kernel queries)
-       run the agent            ← the only nondeterministic step
-       gate the diff            → deny? retry with the exact findings
-       run impacted tests       → fail? retry with the failures
-       semantic-merge back      → conflict? only the real one surfaces
-       release lease`}</pre>
+        <pre class="loop">{`orchestrator: decompose, lease disjoint regions
+  per task (parallel):
+    assemble minimal context (kernel queries)
+    run the agent            -- the only nondeterministic step
+    gate the diff            -- deny? retry with the exact findings
+    run impacted tests       -- fail? retry with the failures
+    semantic-merge back      -- conflict? only the real one surfaces
+    release lease`}</pre>
         <p class="note">A hallucinating agent can't corrupt the repo — every mutation flows
           through the deterministic gate / test / merge it cannot bypass.</p>
       </section>
