@@ -116,6 +116,24 @@ enum Command {
         #[arg(long = "always-run")]
         always_run: Vec<String>,
     },
+    /// Gate the working diff against policy/ACL/leases (deterministic deny)
+    Gate {
+        /// Diff base ref (default: merge-base with main)
+        #[arg(long)]
+        base: Option<String>,
+        /// Acting agent id (enables ACL + lease checks)
+        #[arg(long)]
+        actor: Option<String>,
+        /// Policy file (default: agent-doctor.policy.toml)
+        #[arg(long, default_value = "agent-doctor.policy.toml")]
+        policy: PathBuf,
+        /// Leases file (default: .agent-doctor/leases.json)
+        #[arg(long, default_value = ".agent-doctor/leases.json")]
+        leases: PathBuf,
+        /// Emit violations as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn run_explain(rule_id: &str) -> ExitCode {
@@ -270,6 +288,101 @@ fn run_impact(
     ExitCode::SUCCESS
 }
 
+/// `agent-doctor gate` — evaluate the working diff against policy + leases.
+/// Exits non-zero when any violation is found (CI/agent gate).
+fn run_gate(
+    root: &std::path::Path,
+    base: Option<&str>,
+    actor: Option<&str>,
+    policy_path: &std::path::Path,
+    leases_path: &std::path::Path,
+    json: bool,
+) -> ExitCode {
+    let policy = match agent_doctor_policy::Policy::load(policy_path) {
+        Ok(policy) => policy,
+        Err(error) => {
+            eprintln!("agent-doctor gate: policy: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let resolved_base = match agent_doctor_core::resolve_base(root, base) {
+        Ok(base) => base,
+        Err(error) => {
+            eprintln!("agent-doctor gate: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let diff = match agent_doctor_core::collect_diff(root, &resolved_base, false) {
+        Ok(diff) => diff,
+        Err(error) => {
+            eprintln!("agent-doctor gate: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let leases = match agent_doctor_policy::LeaseSet::load(leases_path) {
+        Ok(leases) => leases,
+        Err(error) => {
+            eprintln!("agent-doctor gate: leases: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut changed: Vec<String> = diff.files.keys().cloned().collect();
+    changed.sort();
+    let index = agent_doctor_core::Index::build(root);
+    let violations = agent_doctor_policy::evaluate(&agent_doctor_policy::GateInput {
+        policy: &policy,
+        graph: index.graph(),
+        changed: &changed,
+        actor,
+        leases: Some(&leases),
+    });
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&violations).expect("serializable violations")
+        );
+        return gate_exit(&violations);
+    }
+
+    let p = palette();
+    println!();
+    if violations.is_empty() {
+        println!("  {}✓ gate passed{} — no policy violations", p.green, p.reset);
+        println!();
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "  {}✖ gate failed{} — {} violation{}",
+        p.red,
+        p.reset,
+        violations.len(),
+        plural(violations.len())
+    );
+    println!();
+    for violation in &violations {
+        println!(
+            "  {}{:?}{} {}{}{}",
+            p.red,
+            violation.kind,
+            p.reset,
+            p.cyan,
+            violation.file,
+            p.reset
+        );
+        println!("    {}{}{}", p.dim, violation.reason, p.reset);
+    }
+    println!();
+    gate_exit(&violations)
+}
+
+fn gate_exit(violations: &[agent_doctor_policy::Violation]) -> ExitCode {
+    if violations.is_empty() {
+        return ExitCode::SUCCESS;
+    }
+    ExitCode::FAILURE
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match &cli.command {
@@ -287,6 +400,22 @@ fn main() -> ExitCode {
             json,
             always_run,
         }) => return run_impact(&cli.path, base.as_deref(), *json, always_run.clone()),
+        Some(Command::Gate {
+            base,
+            actor,
+            policy,
+            leases,
+            json,
+        }) => {
+            return run_gate(
+                &cli.path,
+                base.as_deref(),
+                actor.as_deref(),
+                policy,
+                leases,
+                *json,
+            )
+        }
         None => {}
     }
     let result = match scan(&ScanOptions {
