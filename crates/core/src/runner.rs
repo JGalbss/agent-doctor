@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use oxc_ast::ast::ExportDefaultDeclaration;
 use oxc_ast::ast::{
     ArrowFunctionExpression, AssignmentExpression, BinaryExpression, CallExpression, Class,
     ConditionalExpression, DoWhileStatement, Expression, ForInStatement, ForOfStatement,
@@ -9,6 +8,7 @@ use oxc_ast::ast::{
     TSAsExpression, TaggedTemplateExpression, ThrowStatement, TryStatement, VariableDeclaration,
     WhileStatement, YieldExpression,
 };
+use oxc_ast::ast::{ExportDefaultDeclaration, TSEnumDeclaration, TSNonNullExpression};
 use oxc_ast_visit::{walk, Visit};
 use oxc_syntax::scope::ScopeFlags;
 
@@ -247,6 +247,20 @@ impl<'a> Visit<'a> for Runner {
             rule.on_ts_as_expression(as_expr, &mut self.ctx);
         }
         walk::walk_ts_as_expression(self, as_expr);
+    }
+
+    fn visit_ts_non_null_expression(&mut self, non_null: &TSNonNullExpression<'a>) {
+        for rule in self.rules() {
+            rule.on_ts_non_null(non_null.span, &mut self.ctx);
+        }
+        walk::walk_ts_non_null_expression(self, non_null);
+    }
+
+    fn visit_ts_enum_declaration(&mut self, enum_decl: &TSEnumDeclaration<'a>) {
+        for rule in self.rules() {
+            rule.on_ts_enum(enum_decl.span, &mut self.ctx);
+        }
+        walk::walk_ts_enum_declaration(self, enum_decl);
     }
 
     fn visit_tagged_template_expression(&mut self, template: &TaggedTemplateExpression<'a>) {

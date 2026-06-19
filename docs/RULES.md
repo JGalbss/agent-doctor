@@ -163,6 +163,10 @@ refactor suggestion, not a violation. All AST-only; fire file-wide in any file i
 | `agent-no-namespace-import` | warn | AST | `import * as X` → named bindings (effect's `import * as Effect` exempt) |
 | `agent-no-try-catch` | info | AST | `try/catch` outside `Effect.gen` → typed channel (`Effect.try` + `catchTag`) or `Result` |
 | `agent-no-unbounded-promise-all` | warn | AST | `Promise.all(arr.map(...))` → cap with `p-limit` or `Effect.forEach { concurrency }` |
+| `agent-no-loose-equality` | warn | AST | `==` / `!=` (except `== null`) → `===` / `!==` or `Equal.equals` |
+| `agent-no-non-null-assertion` | warn | AST | `x!` → narrow with a guard or model absence with Option |
+| `agent-no-enum` | warn | AST | TS `enum` → union of string literals / `Schema.Literals` + derived type |
+| `agent-prefer-safe-parse` | warn | AST | `<X>Schema.parse(...)` → `.safeParse()` / decode-to-Either with explicit failure handling |
 | `agent-duplicate-function` | info | AST | two functions in one file with a structurally identical body (renamed copy-paste) → extract a shared helper |
 
 These were mined from the opencode `AGENTS.md` and the Rogo TypeScript conventions; see the

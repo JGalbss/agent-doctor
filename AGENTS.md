@@ -48,8 +48,16 @@ from: **[oc]** = opencode `AGENTS.md`, **[rogo]** = the Rogo TS conventions,
   `agent-no-any` [oc][rogo]
 - **No `as` casts** (except `as const`). Narrow with a guard or decode with
   Schema at the boundary. — `agent-no-as-cast` [rogo][std]
+- **No non-null assertions (`x!`).** Narrow with a guard or model absence with
+  Option. — `agent-no-non-null-assertion` [std]
 - **No `@ts-ignore` / `@ts-expect-error` / `@ts-nocheck`.** `strict: true` is on
   everywhere; fix the type. — `agent-no-ts-ignore` [rogo][std]
+- **No TS `enum`.** Use a union of string literals / `Schema.Literals` and derive
+  the type. — `agent-no-enum`
+- **No `==` / `!=`** (except the idiomatic `== null`). Use `===` / `!==` or
+  `Equal.equals`. — `agent-no-loose-equality`
+- **Prefer `.safeParse()` over `Schema.parse()`** — handle the failure path
+  explicitly. — `agent-prefer-safe-parse` [rogo]
 
 ## Imports & exports
 

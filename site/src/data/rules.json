@@ -824,6 +824,38 @@
     "severity": "warn"
   },
   {
+    "bad": "if (status == \"done\") {} // coerces\nif (count != 0) {}",
+    "category": "Agent hygiene",
+    "good": "if (status === \"done\") {}\nif (count !== 0) {}\n// `value == null` (null + undefined) is the one exempt case",
+    "help": "`==` / `!=` coerce operands and hide bugs. Use `===` / `!==` (or `Equal.equals` for structural equality). `== null` / `!= null` are exempt — that's the one idiomatic nullish check.",
+    "id": "agent-no-loose-equality",
+    "severity": "warn"
+  },
+  {
+    "bad": "const user = users.find((u) => u.id === id)!\nreturn user.name",
+    "category": "Agent hygiene",
+    "good": "const user = users.find((u) => u.id === id)\nif (user === undefined) return yield* new UserNotFound({ id })\nreturn user.name",
+    "help": "The non-null assertion `x!` asserts a value is present without proof — it crashes at runtime when wrong. Narrow with a guard, handle the `undefined` case, or model absence with Option.",
+    "id": "agent-no-non-null-assertion",
+    "severity": "warn"
+  },
+  {
+    "bad": "enum Status {\n  Active,\n  Done,\n}",
+    "category": "Agent hygiene",
+    "good": "const Status = Schema.Literals([\"Active\", \"Done\"])\ntype Status = typeof Status.Type",
+    "help": "TS `enum` emits runtime code and has surprising semantics. Use a union of string literals (or `Schema.Literals(...)`) and derive the type — it's erasable and decodes cleanly.",
+    "id": "agent-no-enum",
+    "severity": "warn"
+  },
+  {
+    "bad": "const user = UserSchema.parse(raw) // throws far from here",
+    "category": "Agent hygiene",
+    "good": "const result = UserSchema.safeParse(raw)\nif (!result.success) return badRequest(result.error)\nconst user = result.data",
+    "help": "`Schema.parse()` throws far from the call site. Prefer `.safeParse()` (Zod) / a decode-to-Either (Effect Schema) so the failure path is handled explicitly — surface a 400, fall back, or log and skip.",
+    "id": "agent-prefer-safe-parse",
+    "severity": "warn"
+  },
+  {
     "bad": "const usageBarFill = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageText = (p) => p >= 100 ? red : p >= 80 ? amber : gray // copy-paste",
     "category": "Agent hygiene",
     "good": "const usageTone = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageBarFill = usageTone\nconst usageText = usageTone",

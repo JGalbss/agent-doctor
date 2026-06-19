@@ -195,6 +195,10 @@ pub trait Rule: Sync {
     fn on_ts_any(&self, _span: Span, _ctx: &mut FileCtx) {}
     fn on_export_default(&self, _span: Span, _ctx: &mut FileCtx) {}
     fn on_ts_as_expression(&self, _as_expr: &TSAsExpression<'_>, _ctx: &mut FileCtx) {}
+    /// A `TSNonNullExpression` (`x!`).
+    fn on_ts_non_null(&self, _span: Span, _ctx: &mut FileCtx) {}
+    /// A `TSEnumDeclaration` (`enum X {}`).
+    fn on_ts_enum(&self, _span: Span, _ctx: &mut FileCtx) {}
     fn on_file_end(&self, _ctx: &mut FileCtx) {}
 }
 

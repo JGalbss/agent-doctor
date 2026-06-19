@@ -128,6 +128,54 @@ static UNBOUNDED_PROMISE_ALL: RuleMeta = RuleMeta {
     help: "`Promise.all(array.map(...))` fans out the whole list at once — it can exhaust the DB pool, trip rate limits, or cascade one slow dependency. Cap it with p-limit, or use Effect.forEach with an explicit `concurrency`.",
 };
 
+static LOOSE_EQUALITY: RuleMeta = RuleMeta {
+    id: "agent-no-loose-equality",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "`==` / `!=` coerce operands and hide bugs. Use `===` / `!==` (or `Equal.equals` for structural equality). `== null` / `!= null` are exempt — that's the one idiomatic nullish check.",
+};
+
+static NON_NULL_ASSERTION: RuleMeta = RuleMeta {
+    id: "agent-no-non-null-assertion",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "The non-null assertion `x!` asserts a value is present without proof — it crashes at runtime when wrong. Narrow with a guard, handle the `undefined` case, or model absence with Option.",
+};
+
+static TS_ENUM: RuleMeta = RuleMeta {
+    id: "agent-no-enum",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "TS `enum` emits runtime code and has surprising semantics. Use a union of string literals (or `Schema.Literals(...)`) and derive the type — it's erasable and decodes cleanly.",
+};
+
+static SAFE_PARSE: RuleMeta = RuleMeta {
+    id: "agent-prefer-safe-parse",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "`Schema.parse()` throws far from the call site. Prefer `.safeParse()` (Zod) / a decode-to-Either (Effect Schema) so the failure path is handled explicitly — surface a 400, fall back, or log and skip.",
+};
+
+fn is_loose_equality(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Equality | BinaryOperator::Inequality
+    )
+}
+
+fn is_null_literal(expr: &Expression) -> bool {
+    matches!(unwrap_parens(expr), Expression::NullLiteral(_))
+}
+
+/// `<X>Schema.parse(...)` — a Zod/Schema parse whose receiver name ends in
+/// `Schema`, distinguishing it from `JSON.parse` / `Number.parse` / etc.
+fn is_schema_parse(call: &CallExpression) -> bool {
+    matches!(
+        static_member(&call.callee),
+        Some((object, "parse")) if ident_name(object).is_some_and(|name| name.ends_with("Schema"))
+    )
+}
+
 fn is_const_assertion(ty: &TSType) -> bool {
     matches!(
         ty,
@@ -233,9 +281,36 @@ impl Rule for AgentHygiene {
             &DEFAULT_EXPORT,
             &AS_CAST,
             &UNBOUNDED_PROMISE_ALL,
+            &LOOSE_EQUALITY,
+            &NON_NULL_ASSERTION,
+            &TS_ENUM,
+            &SAFE_PARSE,
             &DUPLICATE_FUNCTION,
         ];
         METAS
+    }
+
+    fn on_ts_non_null(&self, span: Span, ctx: &mut FileCtx) {
+        if !ctx.agent_active() {
+            return;
+        }
+        ctx.report_agent(
+            &NON_NULL_ASSERTION,
+            span,
+            "non-null assertion `!` — narrow with a guard or model absence with Option".to_string(),
+        );
+    }
+
+    fn on_ts_enum(&self, span: Span, ctx: &mut FileCtx) {
+        if !ctx.agent_active() {
+            return;
+        }
+        ctx.report_agent(
+            &TS_ENUM,
+            keyword_span(span, 4),
+            "TS enum — use a union of string literals / Schema.Literals and derive the type"
+                .to_string(),
+        );
     }
 
     fn on_export_default(&self, span: Span, ctx: &mut FileCtx) {
@@ -366,6 +441,22 @@ impl Rule for AgentHygiene {
         if !ctx.agent_active() || !is_equality(binary.operator) {
             return;
         }
+        // `==` / `!=` (except the idiomatic `== null` / `!= null`) — the
+        // operator itself is the smell, independent of the string-guard check.
+        if is_loose_equality(binary.operator)
+            && !is_null_literal(&binary.left)
+            && !is_null_literal(&binary.right)
+        {
+            ctx.report_agent(
+                &LOOSE_EQUALITY,
+                binary.span,
+                format!(
+                    "`{}` coerces — use `{}=` (or Equal.equals)",
+                    binary.operator.as_str(),
+                    binary.operator.as_str()
+                ),
+            );
+        }
         // `_tag` comparisons belong to the equality-idioms tag rules.
         if is_tag_member(&binary.left) || is_tag_member(&binary.right) {
             return;
@@ -446,6 +537,14 @@ impl Rule for AgentHygiene {
                 &INLINE_IMPORT,
                 call.span,
                 "require(...) — use a static top-level ESM `import` instead".to_string(),
+            );
+            return;
+        }
+        if is_schema_parse(call) {
+            ctx.report_agent(
+                &SAFE_PARSE,
+                call.span,
+                "Schema.parse() throws — prefer .safeParse() / decode-to-Either and handle the failure".to_string(),
             );
             return;
         }

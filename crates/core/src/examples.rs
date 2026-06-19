@@ -456,6 +456,22 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "// @ts-ignore\nconst total = sum(values)",
             "const total = sum(Schema.decodeUnknownSync(Numbers)(values))\n// fix the type rather than silencing the checker",
         ),
+        "agent-no-loose-equality" => (
+            "if (status == \"done\") {} // coerces\nif (count != 0) {}",
+            "if (status === \"done\") {}\nif (count !== 0) {}\n// `value == null` (null + undefined) is the one exempt case",
+        ),
+        "agent-no-non-null-assertion" => (
+            "const user = users.find((u) => u.id === id)!\nreturn user.name",
+            "const user = users.find((u) => u.id === id)\nif (user === undefined) return yield* new UserNotFound({ id })\nreturn user.name",
+        ),
+        "agent-no-enum" => (
+            "enum Status {\n  Active,\n  Done,\n}",
+            "const Status = Schema.Literals([\"Active\", \"Done\"])\ntype Status = typeof Status.Type",
+        ),
+        "agent-prefer-safe-parse" => (
+            "const user = UserSchema.parse(raw) // throws far from here",
+            "const result = UserSchema.safeParse(raw)\nif (!result.success) return badRequest(result.error)\nconst user = result.data",
+        ),
         _ => return None,
     };
     Some(RuleExample { bad, good })

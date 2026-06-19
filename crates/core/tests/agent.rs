@@ -238,3 +238,33 @@ fn ts_ignore_escalates_under_strict() {
         .expect("ts-ignore finding");
     assert_eq!(hit.severity, Severity::Error);
 }
+
+#[test]
+fn flags_loose_equality_but_exempts_null() {
+    let loose = src("export const f = (s: string) => s == \"done\"\n");
+    assert_fires_agent(&loose, "agent-no-loose-equality", 1);
+    let nullish = src("export const f = (x: unknown) => x == null\n");
+    assert_fires_agent(&nullish, "agent-no-loose-equality", 0);
+    let strict = src("export const f = (s: string) => s === \"done\"\n");
+    assert_fires_agent(&strict, "agent-no-loose-equality", 0);
+}
+
+#[test]
+fn flags_non_null_assertion() {
+    let source = src("export const name = (u?: { name: string }) => u!.name\n");
+    assert_fires_agent(&source, "agent-no-non-null-assertion", 1);
+}
+
+#[test]
+fn flags_ts_enum() {
+    let source = src("export enum Status {\n  Active,\n  Done,\n}\n");
+    assert_fires_agent(&source, "agent-no-enum", 1);
+}
+
+#[test]
+fn flags_schema_parse_but_not_json_parse() {
+    let schema = src("export const u = UserSchema.parse(raw)\n");
+    assert_fires_agent(&schema, "agent-prefer-safe-parse", 1);
+    let json = src("export const u = JSON.parse(raw)\n");
+    assert_fires_agent(&json, "agent-prefer-safe-parse", 0);
+}
