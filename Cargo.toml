@@ -7,6 +7,7 @@ members = [
     "crates/impact",
     "crates/bench",
     "crates/policy",
+    "crates/merge",
 ]
 
 [workspace.package]
@@ -19,6 +20,7 @@ repository = "https://github.com/JGalbss/agent-doctor"
 agent_doctor_core = { path = "crates/core" }
 agent_doctor_impact = { path = "crates/impact" }
 agent_doctor_policy = { path = "crates/policy" }
+agent_doctor_merge = { path = "crates/merge" }
 
 oxc_allocator = "0.135"
 oxc_parser = "0.135"
