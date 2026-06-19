@@ -1,32 +1,17 @@
 [workspace]
 resolver = "2"
-members = [
-    "crates/core",
-    "crates/cli",
-    "crates/wasm",
-    "crates/impact",
-    "crates/bench",
-    "crates/policy",
-    "crates/merge",
-    "crates/server",
-    "crates/orchestrator",
-    "crates/vcs",
-]
+members = ["crates/core", "crates/cli", "crates/wasm", "crates/policy", "crates/merge"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/JGalbss/agent-doctor"
 
 [workspace.dependencies]
 agent_doctor_core = { path = "crates/core" }
-agent_doctor_impact = { path = "crates/impact" }
 agent_doctor_policy = { path = "crates/policy" }
 agent_doctor_merge = { path = "crates/merge" }
-agent_doctor_server = { path = "crates/server" }
-agent_doctor_orchestrator = { path = "crates/orchestrator" }
-agent_doctor_vcs = { path = "crates/vcs" }
 
 oxc_allocator = "0.135"
 oxc_parser = "0.135"

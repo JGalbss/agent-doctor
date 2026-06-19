@@ -35,74 +35,48 @@ agent-doctor --agent                    # experimental "agent doctor": flag the 
 agent-doctor --agent-strict             # same, but escalate to errors and exit non-zero (CI gate)
 ```
 
-## Toolkit (experimental)
+## Toolkit — guardrails for coding agents
 
-Beyond the linter, agent-doctor is growing a deterministic layer around AI coding agents —
-the same Rust/oxc kernel exposed for policy, test-selection, and merge. Design:
-[docs/TOOLKIT.md](docs/TOOLKIT.md); build plan: [docs/PLAN.md](docs/PLAN.md).
+Beyond the linter, agent-doctor adds two deterministic guardrails, deliberately scoped to what
+stays relevant as models improve (gate + semantic merge); it does **not** try to gather context,
+plan, or orchestrate for the agent. Design + rationale: [docs/TOOLKIT.md](docs/TOOLKIT.md).
 
 ```sh
-agent-doctor impact --base main          # which tests reach the working diff (impact selection)
-agent-doctor gate --base main --actor a  # gate the diff vs policy/ACL/leases (deny exits non-zero)
-agent-doctor merge BASE OURS THEIRS      # semantic (AST) 3-way merge of TypeScript
+agent-doctor gate --base main --actor a   # gate the diff vs policy/ACL/leases (deny exits non-zero)
+agent-doctor verify --run "npx vitest run" # gate, then run your tests (pre-push hook / CI)
+agent-doctor merge BASE OURS THEIRS        # semantic (AST) 3-way merge of TypeScript
 ```
 
-### Set up in your repo (interactive walkthrough)
+### Set up in your repo
 
 ```sh
-agent-doctor init          # prompts in a terminal (shadcn-style)
+agent-doctor init          # interactive walkthrough (shadcn-style)
 agent-doctor init --yes    # accept all recommended options (CI / scripted)
 ```
 
-`init` always writes `agent-doctor.policy.toml`, `.agent-doctor/.gitignore` (local state stays
-uncommitted), `.mcp.json` (so an MCP-aware harness loads the kernel's tools), and registers the
-semantic merge driver in git config + `.gitattributes`. In a terminal it then **prompts** to:
+`init` writes `agent-doctor.policy.toml`, `.agent-doctor/.gitignore`, and registers the semantic
+merge driver in git config + `.gitattributes`. In a terminal it then prompts (or use flags) to
+install the **Claude Code skill** (`--skills`) and the **pre-push hook** (`--hooks`). Idempotent;
+`--force` overwrites.
 
-- install the **Claude Code skill** at `.claude/skills/agent-doctor/SKILL.md` (teaches an
-  agent to use `verify`/`impact`/`gate`/`merge` in this repo) — or pass `--skills`,
-- install the **pre-push hook** (`verify` on `gt submit` / `git push`) — or pass `--hooks`.
+### Conflict-free parallel work
 
-Idempotent; `--force` overwrites existing files.
-
-### Run locally
-
-```sh
-agent-doctor gate --base main --actor me   # gate a diff (deny exits non-zero)
-agent-doctor impact --base main            # tests reaching the diff
-agent-doctor serve                         # context server (line-delimited JSON over stdio)
-agent-doctor serve --mcp                   # same, speaking MCP — point your agent harness here
-```
-
-### Docker (reproducible, no Rust toolchain)
-
-```sh
-docker build -t agent-doctor .
-docker run --rm -v "$PWD:/repo" agent-doctor gate --base main
-docker run --rm -i -v "$PWD:/repo" agent-doctor serve --mcp   # MCP over stdio
-```
-
-### Graphite / git hooks / CI
-
-`agent-doctor verify` gates a diff and runs only the impacted tests — wire it as a
-pre-push hook so it fires on `gt submit` (or `git push`), or as a GitHub Action.
-
-```sh
-agent-doctor init --hooks          # installs .git/hooks/pre-push -> agent-doctor verify
-agent-doctor verify --run "npx vitest run"   # gate + run impacted tests
-```
-
-Full setup (Graphite, hook, GitHub Action, wrapper alias): [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
-
-The merge driver `init` registers (also settable by hand):
+Two agents (or two tickets) editing the same file merge cleanly when they touch different
+declarations — the merge driver `init` registers, also settable by hand:
 
 ```sh
 git config merge.agent-doctor.driver "agent-doctor merge %O %A %B"
 echo '*.ts  merge=agent-doctor' >> .gitattributes
 ```
 
-**Latency** (`bench/run.sh`, Apple Silicon, release): cold index build scales ~20µs/file
-(zod, 404 files → ~8ms); warm incremental update ~28µs; impact selection sub-µs once the
-dependency graph is warm. See [bench/RESULTS.md](bench/RESULTS.md).
+For the broader "git is painful for agents" problem (stale branches, juggling two tickets),
+pair this with [jj](https://github.com/jj-vcs/jj) — see [docs/TOOLKIT.md](docs/TOOLKIT.md).
+
+### Graphite / git hooks / CI · Claude Code plugin
+
+`agent-doctor verify` (gate + your tests) wires up as a pre-push hook so it fires on `gt submit`,
+or as a GitHub Action; or install the Claude Code plugin for the skill + commit-gate hook.
+Full setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 ## Docs site
 

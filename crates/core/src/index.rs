@@ -1,9 +1,8 @@
 //! The kernel index: a warm, incrementally-updatable view of a TypeScript repo.
 //!
 //! Today it owns the [`SymbolGraph`]; as the toolkit grows this is where the
-//! function index, policy state, and impact graph will be co-located so every
-//! consumer (impact, policy, merge, orchestrator) reads from one source of
-//! truth. Building parses files in parallel; updating re-parses a single file.
+//! gate (policy/leases) reads from one source of truth. Building parses files
+//! in parallel; updating re-parses a single file.
 
 use std::path::{Path, PathBuf};
 

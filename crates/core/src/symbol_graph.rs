@@ -1,6 +1,6 @@
 //! Repo-wide symbol graph: per-file top-level definitions and the import edges
 //! between files. This is the kernel's "ground truth" about what exists and what
-//! depends on what — the substrate the impact (test-selection), policy
+//! depends on what — the substrate the policy
 //! (layering), and orchestration (footprint) layers all read from.
 //!
 //! It is deliberately *not* Effect-specific: every top-level definition is

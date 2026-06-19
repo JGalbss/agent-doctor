@@ -1,5 +1,5 @@
 //! Content-addressed identity for the toolkit kernel. Every downstream layer
-//! (impact, policy, merge, the orchestrator) caches off these so that the same
+//! (policy, merge, the gate) caches off these so that the same
 //! input always yields the same verdict — the property the whole system calls
 //! "deterministic". Hashing is FNV-1a (64-bit): dependency-free and stable
 //! across runs and Rust versions, unlike [`std::hash::DefaultHasher`], whose

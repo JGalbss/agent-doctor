@@ -1,10 +1,9 @@
 //! End-to-end tests that build and run the actual `agent-doctor` binary against
-//! real git repositories and stdio — covering the toolkit subcommands that unit
-//! tests can't reach (process exit codes, the git merge driver, the serve loop).
+//! real git repositories — covering the toolkit subcommands that unit tests
+//! can't reach (process exit codes, the git merge driver, scaffolding).
 
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Path to the built binary, provided by cargo to integration tests.
@@ -50,11 +49,9 @@ fn gate_denies_protected_and_passes_clean() {
     write(&dir, "src/app.ts", "export const a = 1\n");
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-qm", "base"]);
-    // change the file in a second commit so it shows in the diff vs HEAD~1.
     write(&dir, "src/app.ts", "export const a = 2\n");
     git(&dir, &["commit", "-qam", "change"]);
 
-    // policy that protects the changed file → deny (exit 1).
     write(&dir, "deny.toml", "[protected]\nglobs = [\"src/app.ts\"]\n");
     let denied = Command::new(BIN)
         .current_dir(&dir)
@@ -63,7 +60,6 @@ fn gate_denies_protected_and_passes_clean() {
         .unwrap();
     assert!(!denied.status.success(), "expected non-zero exit on deny");
 
-    // policy that protects something else → pass (exit 0).
     write(&dir, "ok.toml", "[protected]\nglobs = [\"other/**\"]\n");
     let passed = Command::new(BIN)
         .current_dir(&dir)
@@ -71,179 +67,6 @@ fn gate_denies_protected_and_passes_clean() {
         .output()
         .unwrap();
     assert!(passed.status.success(), "expected zero exit when clean");
-
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn impact_emits_valid_json() {
-    let dir = temp_dir("impact");
-    init_repo(&dir);
-    write(&dir, "src/a.ts", "export const x = 1\n");
-    write(&dir, "test/a.test.ts", "import { x } from '../src/a'\n");
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-qm", "base"]);
-    write(&dir, "src/a.ts", "export const x = 2\n");
-    git(&dir, &["commit", "-qam", "change"]);
-
-    let out = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["impact", "--base", "HEAD~1", "--json"])
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    let value: serde_json::Value = serde_json::from_slice(&out.stdout).expect("valid JSON");
-    let tests = value["tests"].as_array().unwrap();
-    assert!(tests.iter().any(|t| t == "test/a.test.ts"));
-
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn merge_driver_auto_resolves_additive_conflict() {
-    let dir = temp_dir("merge");
-    init_repo(&dir);
-    write(&dir, "f.ts", "export function a() { return 1 }\n");
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-qm", "base"]);
-
-    git(&dir, &["checkout", "-q", "-b", "feature"]);
-    write(
-        &dir,
-        "f.ts",
-        "export function a() { return 1 }\nexport function b() { return 2 }\n",
-    );
-    git(&dir, &["commit", "-qam", "add b"]);
-
-    git(&dir, &["checkout", "-q", "main"]);
-    write(
-        &dir,
-        "f.ts",
-        "export function a() { return 1 }\nexport function c() { return 3 }\n",
-    );
-    git(&dir, &["commit", "-qam", "add c"]);
-
-    // register the semantic merge driver pointing at the built binary.
-    git(&dir, &["config", "merge.ad.name", "agent-doctor"]);
-    git(&dir, &["config", "merge.ad.driver", &format!("{BIN} merge %O %A %B")]);
-    write(&dir, ".gitattributes", "*.ts merge=ad\n");
-    git(&dir, &["add", ".gitattributes"]);
-    git(&dir, &["commit", "-qm", "attrs"]);
-
-    // vanilla git would conflict here; the semantic driver should auto-resolve.
-    let merged = Command::new("git")
-        .arg("-C")
-        .arg(&dir)
-        .args(["merge", "feature", "-m", "merge"])
-        .output()
-        .unwrap();
-    assert!(merged.status.success(), "merge should succeed cleanly");
-
-    let result = std::fs::read_to_string(dir.join("f.ts")).unwrap();
-    assert!(result.contains("function b"), "kept feature's addition");
-    assert!(result.contains("function c"), "kept main's addition");
-    assert!(!result.contains("<<<<<<<"), "no conflict markers");
-
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn init_scaffolds_and_is_idempotent() {
-    let dir = temp_dir("init");
-    init_repo(&dir);
-    let first = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
-    assert!(first.status.success());
-    assert!(dir.join("agent-doctor.policy.toml").exists());
-    assert!(dir.join(".agent-doctor/.gitignore").exists());
-    assert!(dir.join(".mcp.json").exists());
-    assert!(dir.join(".gitattributes").exists());
-
-    // merge driver registered in git config.
-    let driver = Command::new("git")
-        .arg("-C")
-        .arg(&dir)
-        .args(["config", "--get", "merge.agent-doctor.driver"])
-        .output()
-        .unwrap();
-    assert!(driver.status.success() && !driver.stdout.is_empty());
-
-    // second run is idempotent: still succeeds, doesn't duplicate gitattributes.
-    let second = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
-    assert!(second.status.success());
-    let attrs = std::fs::read_to_string(dir.join(".gitattributes")).unwrap();
-    assert_eq!(attrs.matches("*.ts merge=agent-doctor").count(), 1);
-
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn serve_answers_a_query_over_stdio() {
-    let dir = temp_dir("serve");
-    write(&dir, "a.ts", "export function foo() { return 1 }\n");
-
-    let mut child = Command::new(BIN)
-        .current_dir(&dir)
-        .arg("serve")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(b"{\"id\":1,\"method\":\"symbol_exists\",\"params\":{\"name\":\"foo\"}}\n")
-        .unwrap();
-    // dropping stdin closes it → server hits EOF and exits after responding.
-    let out = child.wait_with_output().unwrap();
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("\"result\""), "got: {stdout}");
-    assert!(stdout.contains("foo"), "got: {stdout}");
-
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn serve_mcp_handshake_and_tool_call() {
-    let dir = temp_dir("mcp");
-    write(&dir, "a.ts", "export function foo() {}\n");
-    let mut child = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["serve", "--mcp"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(
-            b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n\
-              {\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"symbol_exists\",\"arguments\":{\"name\":\"foo\"}}}\n",
-        )
-        .unwrap();
-    let out = child.wait_with_output().unwrap();
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("protocolVersion"), "got: {stdout}");
-    assert!(stdout.contains("foo"), "got: {stdout}");
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn merge_real_conflict_writes_markers_and_exits_nonzero() {
-    let dir = temp_dir("conflict");
-    write(&dir, "base.ts", "export const x = 1\n");
-    write(&dir, "ours.ts", "export const x = 2\n");
-    write(&dir, "theirs.ts", "export const x = 3\n");
-    let out = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["merge", "base.ts", "ours.ts", "theirs.ts", "--output", "out.ts"])
-        .output()
-        .unwrap();
-    assert!(!out.status.success(), "same-decl conflict must fail");
-    let merged = std::fs::read_to_string(dir.join("out.ts")).unwrap();
-    assert!(merged.contains("<<<<<<<"), "expected conflict markers");
     std::fs::remove_dir_all(&dir).ok();
 }
 
@@ -255,7 +78,6 @@ fn gate_flags_layering_violation() {
     write(&dir, "src/core/engine.ts", "export const e = 1\n");
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-qm", "base"]);
-    // introduce an illegal core→ui import.
     write(&dir, "src/core/engine.ts", "import { b } from '../ui/button'\nexport const e = b\n");
     git(&dir, &["commit", "-qam", "bad import"]);
     write(
@@ -269,8 +91,7 @@ fn gate_flags_layering_violation() {
         .output()
         .unwrap();
     assert!(!out.status.success(), "layering violation must fail the gate");
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("layering"), "got: {stdout}");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("layering"));
     std::fs::remove_dir_all(&dir).ok();
 }
 
@@ -283,7 +104,6 @@ fn gate_enforces_leases_per_actor() {
     git(&dir, &["commit", "-qm", "base"]);
     write(&dir, "src/auth/login.ts", "export const a = 2\n");
     git(&dir, &["commit", "-qam", "change"]);
-    // agent-a owns src/auth/**.
     write(
         &dir,
         "leases.json",
@@ -307,44 +127,22 @@ fn gate_enforces_leases_per_actor() {
 }
 
 #[test]
-fn init_installs_skill_and_hook_with_flags() {
-    let dir = temp_dir("skills");
-    init_repo(&dir);
-    let out = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["init", "--skills", "--hooks"])
-        .output()
-        .unwrap();
-    assert!(out.status.success());
-    let skill = dir.join(".claude/skills/agent-doctor/SKILL.md");
-    assert!(skill.exists(), "skill file installed");
-    let body = std::fs::read_to_string(&skill).unwrap();
-    assert!(body.contains("name: agent-doctor"), "skill has frontmatter");
-    assert!(dir.join(".git/hooks/pre-push").exists(), "pre-push hook installed");
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
 fn verify_passes_clean_and_blocks_on_policy() {
     let dir = temp_dir("verify");
     init_repo(&dir);
     write(&dir, "src/a.ts", "export const x = 1\n");
-    write(&dir, "test/a.test.ts", "import '../src/a'\n");
     git(&dir, &["add", "-A"]);
     git(&dir, &["commit", "-qm", "base"]);
     write(&dir, "src/a.ts", "export const x = 2\n");
     git(&dir, &["commit", "-qam", "change"]);
 
-    // clean: gate ok, lists the impacted test, exit 0.
     let ok = Command::new(BIN)
         .current_dir(&dir)
         .args(["verify", "--base", "HEAD~1"])
         .output()
         .unwrap();
-    assert!(ok.status.success());
-    assert!(String::from_utf8_lossy(&ok.stdout).contains("test/a.test.ts"));
+    assert!(ok.status.success(), "clean diff should pass the gate");
 
-    // a policy that protects the changed file blocks the submit.
     write(&dir, "deny.toml", "[protected]\nglobs = [\"src/a.ts\"]\n");
     let blocked = Command::new(BIN)
         .current_dir(&dir)
@@ -356,50 +154,93 @@ fn verify_passes_clean_and_blocks_on_policy() {
 }
 
 #[test]
-fn orchestrate_runs_a_ledger_through_the_loop() {
-    let dir = temp_dir("orch");
-    write(&dir, "src/app.ts", "export const a = 1\n");
-    // an executor: ignore stdin, emit an outcome editing src/app.ts.
-    let script = dir.join("exec.sh");
-    std::fs::write(
-        &script,
-        "#!/bin/sh\ncat >/dev/null\nprintf '%s' '{\"changes\":[{\"path\":\"src/app.ts\",\"new_source\":\"export const a = 2\"}],\"summary\":\"done\"}'\n",
-    )
-    .unwrap();
-    set_executable(&script);
-    write(
-        &dir,
-        "ledger.json",
-        "{\"tasks\":[{\"id\":\"t1\",\"intent\":\"edit app\",\"targets\":[\"src/app.ts\"],\"status\":\"pending\"}]}",
-    );
+fn merge_driver_auto_resolves_additive_conflict() {
+    let dir = temp_dir("merge");
+    init_repo(&dir);
+    write(&dir, "f.ts", "export function a() { return 1 }\n");
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-qm", "base"]);
 
-    let out = Command::new(BIN)
-        .current_dir(&dir)
-        .args([
-            "orchestrate",
-            "--ledger",
-            "ledger.json",
-            "--executor",
-            script.to_str().unwrap(),
-            "--policy",
-            "nonexistent.toml",
-        ])
+    git(&dir, &["checkout", "-q", "-b", "feature"]);
+    write(&dir, "f.ts", "export function a() { return 1 }\nexport function b() { return 2 }\n");
+    git(&dir, &["commit", "-qam", "add b"]);
+    git(&dir, &["checkout", "-q", "main"]);
+    write(&dir, "f.ts", "export function a() { return 1 }\nexport function c() { return 3 }\n");
+    git(&dir, &["commit", "-qam", "add c"]);
+
+    git(&dir, &["config", "merge.ad.name", "agent-doctor"]);
+    git(&dir, &["config", "merge.ad.driver", &format!("{BIN} merge %O %A %B")]);
+    write(&dir, ".gitattributes", "*.ts merge=ad\n");
+    git(&dir, &["add", ".gitattributes"]);
+    git(&dir, &["commit", "-qm", "attrs"]);
+
+    let merged = Command::new("git")
+        .arg("-C")
+        .arg(&dir)
+        .args(["merge", "feature", "-m", "merge"])
         .output()
         .unwrap();
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
-    // the ledger is written back with the task marked done.
-    let ledger = std::fs::read_to_string(dir.join("ledger.json")).unwrap();
-    assert!(ledger.contains("\"done\""), "ledger: {ledger}");
+    assert!(merged.status.success(), "additive merge should be clean");
+    let result = std::fs::read_to_string(dir.join("f.ts")).unwrap();
+    assert!(result.contains("function b") && result.contains("function c"));
+    assert!(!result.contains("<<<<<<<"), "no conflict markers");
     std::fs::remove_dir_all(&dir).ok();
 }
 
-#[cfg(unix)]
-fn set_executable(path: &Path) {
-    use std::os::unix::fs::PermissionsExt;
-    let mut perms = std::fs::metadata(path).unwrap().permissions();
-    perms.set_mode(0o755);
-    std::fs::set_permissions(path, perms).unwrap();
+#[test]
+fn merge_real_conflict_writes_markers_and_exits_nonzero() {
+    let dir = temp_dir("conflict");
+    write(&dir, "base.ts", "export const x = 1\n");
+    write(&dir, "ours.ts", "export const x = 2\n");
+    write(&dir, "theirs.ts", "export const x = 3\n");
+    let out = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["merge", "base.ts", "ours.ts", "theirs.ts", "--output", "out.ts"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "same-decl conflict must fail");
+    assert!(std::fs::read_to_string(dir.join("out.ts")).unwrap().contains("<<<<<<<"));
+    std::fs::remove_dir_all(&dir).ok();
 }
 
-#[cfg(not(unix))]
-fn set_executable(_path: &Path) {}
+#[test]
+fn init_scaffolds_and_is_idempotent() {
+    let dir = temp_dir("init");
+    init_repo(&dir);
+    let first = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
+    assert!(first.status.success());
+    assert!(dir.join("agent-doctor.policy.toml").exists());
+    assert!(dir.join(".agent-doctor/.gitignore").exists());
+    assert!(dir.join(".gitattributes").exists());
+
+    let driver = Command::new("git")
+        .arg("-C")
+        .arg(&dir)
+        .args(["config", "--get", "merge.agent-doctor.driver"])
+        .output()
+        .unwrap();
+    assert!(driver.status.success() && !driver.stdout.is_empty());
+
+    let second = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
+    assert!(second.status.success());
+    let attrs = std::fs::read_to_string(dir.join(".gitattributes")).unwrap();
+    assert_eq!(attrs.matches("*.ts merge=agent-doctor").count(), 1);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn init_installs_skill_and_hook_with_flags() {
+    let dir = temp_dir("skills");
+    init_repo(&dir);
+    let out = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["init", "--skills", "--hooks"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let skill = dir.join(".claude/skills/agent-doctor/SKILL.md");
+    assert!(skill.exists(), "skill file installed");
+    assert!(std::fs::read_to_string(&skill).unwrap().contains("name: agent-doctor"));
+    assert!(dir.join(".git/hooks/pre-push").exists(), "pre-push hook installed");
+    std::fs::remove_dir_all(&dir).ok();
+}

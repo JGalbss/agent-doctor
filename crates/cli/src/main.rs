@@ -104,18 +104,6 @@ enum Command {
     },
     /// Run as a language server over stdio (editor diagnostics)
     Lsp,
-    /// Select the tests impacted by the working diff (impact-based selection)
-    Impact {
-        /// Diff base ref (default: merge-base with main)
-        #[arg(long)]
-        base: Option<String>,
-        /// Emit the result as JSON
-        #[arg(long)]
-        json: bool,
-        /// Tests to always include regardless of the diff (repeatable)
-        #[arg(long = "always-run")]
-        always_run: Vec<String>,
-    },
     /// Gate the working diff against policy/ACL/leases (deterministic deny)
     Gate {
         /// Diff base ref (default: merge-base with main)
@@ -149,8 +137,8 @@ enum Command {
         /// Leases file
         #[arg(long, default_value = ".agent-doctor/leases.json")]
         leases: PathBuf,
-        /// Run the impacted tests with this command; the test files are appended
-        /// (e.g. --run "npx vitest run"). Omit to only list them.
+        /// After the gate passes, run this test command (e.g. "npx vitest run
+        /// --changed"). Omit to gate only.
         #[arg(long)]
         run: Option<String>,
     },
@@ -169,20 +157,8 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Run the context server: warm kernel answering line-delimited JSON queries
-    Serve {
-        /// Policy file (default: agent-doctor.policy.toml)
-        #[arg(long, default_value = "agent-doctor.policy.toml")]
-        policy: PathBuf,
-        /// Leases file (default: .agent-doctor/leases.json)
-        #[arg(long, default_value = ".agent-doctor/leases.json")]
-        leases: PathBuf,
-        /// Speak the Model Context Protocol (MCP) instead of plain JSON
-        #[arg(long)]
-        mcp: bool,
-    },
     /// Scaffold the toolkit in this repo (interactive walkthrough in a terminal):
-    /// policy, gitignore, merge driver, MCP config, Claude Code skill, git hook
+    /// policy, gitignore, merge driver, Claude Code skill, git hook
     Init {
         /// Overwrite existing files instead of leaving them untouched
         #[arg(long)]
@@ -196,27 +172,6 @@ enum Command {
         /// Accept all recommended options without prompting (CI / scripted)
         #[arg(long)]
         yes: bool,
-    },
-    /// Run a task ledger through the deterministic loop with a pluggable agent
-    Orchestrate {
-        /// Ledger JSON file (tasks); statuses are written back after the run
-        #[arg(long, default_value = ".agent-doctor/ledger.json")]
-        ledger: PathBuf,
-        /// Acting agent id
-        #[arg(long, default_value = "agent")]
-        actor: String,
-        /// Executor command (JSON spec on stdin → outcome JSON on stdout)
-        #[arg(long)]
-        executor: String,
-        /// Policy file
-        #[arg(long, default_value = "agent-doctor.policy.toml")]
-        policy: PathBuf,
-        /// Leases file
-        #[arg(long, default_value = ".agent-doctor/leases.json")]
-        leases: PathBuf,
-        /// Retries after a gate denial
-        #[arg(long, default_value_t = 2)]
-        max_retries: u32,
     },
 }
 
@@ -318,63 +273,6 @@ fn changed_and_index(
     Ok((changed, agent_doctor_core::Index::build(root)))
 }
 
-/// `agent-doctor impact` — build the index, diff against the base, and report
-/// the tests reaching the change.
-fn run_impact(
-    root: &std::path::Path,
-    base: Option<&str>,
-    json: bool,
-    always_run: Vec<String>,
-) -> ExitCode {
-    let (changed, index) = match changed_and_index(root, base) {
-        Ok(pair) => pair,
-        Err(error) => {
-            eprintln!("agent-doctor impact: {error}");
-            return ExitCode::from(2);
-        }
-    };
-    let result = agent_doctor_impact::select(
-        index.graph(),
-        &changed,
-        &agent_doctor_impact::ImpactConfig { always_run },
-    );
-
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&result).expect("serializable impact result")
-        );
-        return ExitCode::SUCCESS;
-    }
-
-    let p = palette();
-    println!();
-    println!(
-        "  {}impact{}  {}{} changed file{} -> {} test{} to run{}",
-        p.bold,
-        p.reset,
-        p.dim,
-        changed.len(),
-        plural(changed.len()),
-        result.tests.len(),
-        plural(result.tests.len()),
-        p.reset
-    );
-    println!();
-    for test in &result.tests {
-        println!("  {}{}{}", p.cyan, test, p.reset);
-    }
-    if result.tests.is_empty() {
-        println!("  {}no tests reach this change{}", p.dim, p.reset);
-    }
-    for caveat in &result.caveats {
-        println!();
-        println!("  {}warning: {}{}", p.yellow, caveat, p.reset);
-    }
-    println!();
-    ExitCode::SUCCESS
-}
-
 /// `agent-doctor gate` — evaluate the working diff against policy + leases.
 /// Exits non-zero when any violation is found (CI/agent gate).
 fn run_gate(
@@ -460,9 +358,9 @@ fn gate_exit(violations: &[agent_doctor_policy::Violation]) -> ExitCode {
     ExitCode::FAILURE
 }
 
-/// `agent-doctor verify` — the pre-submit gate: deny on policy violations, then
-/// select the impacted tests and (with --run) execute exactly those. Exits
-/// non-zero if the gate fails or the tests fail.
+/// `agent-doctor verify` — the pre-submit gate: deny on policy/lease violations,
+/// then (with --run) run the given test command. Exits non-zero if the gate
+/// fails or the tests fail. Designed as a pre-push hook (fires on `gt submit`).
 fn run_verify(
     root: &std::path::Path,
     base: Option<&str>,
@@ -488,7 +386,7 @@ fn run_verify(
     let leases = agent_doctor_policy::LeaseSet::load(leases_path).unwrap_or_default();
     let p = palette();
 
-    // 1. gate — a policy violation blocks the submit.
+    // gate — a policy/lease violation blocks the submit.
     let violations = agent_doctor_policy::evaluate(&agent_doctor_policy::GateInput {
         policy: &policy,
         graph: index.graph(),
@@ -498,44 +396,35 @@ fn run_verify(
     });
     println!();
     if !violations.is_empty() {
-        println!("  {}verify: gate failed{} — {} violation{}", p.red, p.reset, violations.len(), plural(violations.len()));
+        println!(
+            "  {}verify: gate failed{} — {} violation{}",
+            p.red,
+            p.reset,
+            violations.len(),
+            plural(violations.len())
+        );
         for violation in &violations {
-            println!("    {}{:?}{} {} — {}", p.red, violation.kind, p.reset, violation.file, violation.reason);
+            println!(
+                "    {}{:?}{} {} — {}",
+                p.red, violation.kind, p.reset, violation.file, violation.reason
+            );
         }
         println!();
         return ExitCode::FAILURE;
     }
-
-    // 2. impact — the tests reaching the diff.
-    let impact = agent_doctor_impact::select(
-        index.graph(),
-        &changed,
-        &agent_doctor_impact::ImpactConfig::default(),
-    );
     println!(
-        "  {}verify: gate ok{} — {} impacted test{}",
+        "  {}verify: gate ok{} — {} changed file{}",
         p.green,
         p.reset,
-        impact.tests.len(),
-        plural(impact.tests.len())
+        changed.len(),
+        plural(changed.len())
     );
-    for test in &impact.tests {
-        println!("    {}{}{}", p.cyan, test, p.reset);
-    }
-    for caveat in &impact.caveats {
-        println!("  {}warning: {}{}", p.yellow, caveat, p.reset);
-    }
 
-    // 3. optionally run exactly those tests.
+    // optionally run the project's test command (it can scope itself, e.g. --changed).
     let Some(run) = run else {
         println!();
         return ExitCode::SUCCESS;
     };
-    if impact.tests.is_empty() {
-        println!("  {}no impacted tests to run{}", p.dim, p.reset);
-        println!();
-        return ExitCode::SUCCESS;
-    }
     let mut parts = run.split_whitespace();
     let Some(program) = parts.next() else {
         eprintln!("agent-doctor verify: empty --run command");
@@ -543,7 +432,6 @@ fn run_verify(
     };
     let status = std::process::Command::new(program)
         .args(parts)
-        .args(&impact.tests)
         .current_dir(root)
         .status();
     println!();
@@ -620,32 +508,6 @@ fn merge_exit(clean: bool) -> ExitCode {
     ExitCode::FAILURE
 }
 
-/// `agent-doctor serve` — build the warm kernel and answer queries on stdio,
-/// either as plain line-delimited JSON or as an MCP server (`--mcp`).
-fn run_serve(
-    root: &std::path::Path,
-    policy: &std::path::Path,
-    leases: &std::path::Path,
-    mcp: bool,
-) -> ExitCode {
-    let mut kernel = match agent_doctor_server::Kernel::build(root, policy, leases) {
-        Ok(kernel) => kernel,
-        Err(error) => {
-            eprintln!("agent-doctor serve: {error}");
-            return ExitCode::from(2);
-        }
-    };
-    let result = match mcp {
-        true => agent_doctor_server::serve_mcp(&mut kernel),
-        false => agent_doctor_server::serve(&mut kernel),
-    };
-    if let Err(error) = result {
-        eprintln!("agent-doctor serve: {error}");
-        return ExitCode::from(2);
-    }
-    ExitCode::SUCCESS
-}
-
 const STARTER_POLICY: &str = r#"# agent-doctor policy — the deterministic gate for agent diffs.
 # Docs: docs/TOOLKIT.md. Everything here returns facts, never opinions.
 
@@ -663,16 +525,6 @@ const STARTER_POLICY: &str = r#"# agent-doctor policy — the deterministic gate
 # Files no agent may ever touch.
 [protected]
 globs = ["**/*.gen.ts", "src/db/migrations/**"]
-"#;
-
-const MCP_CONFIG: &str = r#"{
-  "mcpServers": {
-    "agent-doctor": {
-      "command": "agent-doctor",
-      "args": ["serve", "--mcp"]
-    }
-  }
-}
 "#;
 
 const STATE_GITIGNORE: &str = "# agent-doctor local state — do not commit\n*\n!.gitignore\n";
@@ -693,7 +545,6 @@ fn run_init(root: &std::path::Path, force: bool, hooks: bool, skills: bool, yes:
     // Always-on core scaffold.
     write_scaffold(root, "agent-doctor.policy.toml", STARTER_POLICY, force, p);
     write_scaffold(root, ".agent-doctor/.gitignore", STATE_GITIGNORE, force, p);
-    write_scaffold(root, ".mcp.json", MCP_CONFIG, force, p);
     ensure_merge_driver(root, p);
 
     // Optional pieces: explicit flags win; otherwise prompt in a terminal; else off.
@@ -712,11 +563,9 @@ fn run_init(root: &std::path::Path, force: bool, hooks: bool, skills: bool, yes:
 
     println!();
     println!("  {}next steps{}", p.bold, p.reset);
-    println!("    • edit {}agent-doctor.policy.toml{} to set your layers/ACLs", p.cyan, p.reset);
+    println!("    • edit {}agent-doctor.policy.toml{} to set your protected paths / layers / ACLs", p.cyan, p.reset);
     println!("    • {}agent-doctor gate --base main --actor you{}  — gate a diff", p.dim, p.reset);
-    println!("    • {}agent-doctor impact --base main{}            — tests for a diff", p.dim, p.reset);
-    println!("    • {}agent-doctor verify{}  — gate + impacted tests (wire as a pre-push hook)", p.dim, p.reset);
-    println!("    • restart your agent harness to load the MCP server (.mcp.json)");
+    println!("    • {}agent-doctor verify --run \"npx vitest run\"{}  — gate + tests (pre-push hook)", p.dim, p.reset);
     println!();
     ExitCode::SUCCESS
 }
@@ -847,94 +696,6 @@ fn append_attributes(root: &std::path::Path, p: &Palette) {
     }
 }
 
-/// `agent-doctor orchestrate` — drive a task ledger through the deterministic
-/// loop, dispatching each task to the executor command. Writes ledger statuses
-/// back; exits non-zero if any task failed.
-#[allow(clippy::too_many_arguments)]
-fn run_orchestrate(
-    root: &std::path::Path,
-    ledger_path: &std::path::Path,
-    actor: &str,
-    executor_cmd: &str,
-    policy: &std::path::Path,
-    leases_path: &std::path::Path,
-    max_retries: u32,
-) -> ExitCode {
-    use agent_doctor_orchestrator::{
-        run_ledger, CommandExecutor, Ledger, RunConfig, TaskStatus,
-    };
-
-    let mut parts = executor_cmd.split_whitespace().map(str::to_string);
-    let Some(program) = parts.next() else {
-        eprintln!("agent-doctor orchestrate: empty --executor command");
-        return ExitCode::from(2);
-    };
-    let args: Vec<String> = parts.collect();
-
-    let kernel = match agent_doctor_server::Kernel::build(root, policy, leases_path) {
-        Ok(kernel) => kernel,
-        Err(error) => {
-            eprintln!("agent-doctor orchestrate: {error}");
-            return ExitCode::from(2);
-        }
-    };
-    let mut ledger = match Ledger::load(ledger_path) {
-        Ok(ledger) => ledger,
-        Err(error) => {
-            eprintln!("agent-doctor orchestrate: ledger: {error}");
-            return ExitCode::from(2);
-        }
-    };
-    if ledger.has_cycle() {
-        eprintln!("agent-doctor orchestrate: ledger has a dependency cycle or dangling dep");
-        return ExitCode::from(2);
-    }
-    let mut leases = agent_doctor_policy::LeaseSet::load(leases_path).unwrap_or_default();
-    let mut executor = CommandExecutor::new(program, args);
-
-    let reports = run_ledger(
-        &kernel,
-        &mut leases,
-        actor,
-        &mut ledger,
-        &mut executor,
-        &RunConfig { max_retries },
-    );
-    if let Err(error) = ledger.save(ledger_path) {
-        eprintln!("agent-doctor orchestrate: save ledger: {error}");
-    }
-
-    let p = palette();
-    println!();
-    let failures = reports
-        .iter()
-        .filter(|report| report.status == TaskStatus::Failed)
-        .count();
-    for report in &reports {
-        let mark = match report.status {
-            TaskStatus::Done => p.green,
-            TaskStatus::Failed => p.red,
-            _ => p.yellow,
-        };
-        println!(
-            "  {}{:?}{} {} ({} attempt{}, {} test{})",
-            mark,
-            report.status,
-            p.reset,
-            report.task_id,
-            report.attempts,
-            plural(report.attempts as usize),
-            report.impacted_tests.len(),
-            plural(report.impacted_tests.len()),
-        );
-    }
-    println!();
-    if failures > 0 {
-        return ExitCode::FAILURE;
-    }
-    ExitCode::SUCCESS
-}
-
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match &cli.command {
@@ -947,11 +708,6 @@ fn main() -> ExitCode {
             }
             return ExitCode::SUCCESS;
         }
-        Some(Command::Impact {
-            base,
-            json,
-            always_run,
-        }) => return run_impact(&cli.path, base.as_deref(), *json, always_run.clone()),
         Some(Command::Gate {
             base,
             actor,
@@ -991,29 +747,12 @@ fn main() -> ExitCode {
             output,
             json,
         }) => return run_merge(base, ours, theirs, output.as_deref(), *json),
-        Some(Command::Serve {
-            policy,
-            leases,
-            mcp,
-        }) => return run_serve(&cli.path, policy, leases, *mcp),
         Some(Command::Init {
             force,
             hooks,
             skills,
             yes,
         }) => return run_init(&cli.path, *force, *hooks, *skills, *yes),
-        Some(Command::Orchestrate {
-            ledger,
-            actor,
-            executor,
-            policy,
-            leases,
-            max_retries,
-        }) => {
-            return run_orchestrate(
-                &cli.path, ledger, actor, executor, policy, leases, *max_retries,
-            )
-        }
         None => {}
     }
     let result = match scan(&ScanOptions {

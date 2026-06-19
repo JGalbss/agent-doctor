@@ -3,7 +3,7 @@
   "name": "agent-doctor",
   "displayName": "agent-doctor",
   "version": "0.2.0",
-  "description": "Deterministic toolkit for coding agents: gate diffs (policy/ACL/leases), select impacted tests, semantic-merge TypeScript, and a context server. Bundles a skill, the MCP server, slash commands, and a commit-gate hook.",
+  "description": "Guardrails for coding agents: gate diffs against policy/ACL/leases and semantic-merge TypeScript so concurrent work doesn't conflict. Bundles a skill, slash commands, and a commit-gate hook.",
   "author": { "name": "JGalbss", "url": "https://github.com/JGalbss/agent-doctor" },
   "homepage": "https://effect.doctor/toolkit",
   "repository": "https://github.com/JGalbss/agent-doctor",

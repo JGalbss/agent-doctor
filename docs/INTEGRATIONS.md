@@ -2,8 +2,8 @@
 
 ## Claude Code plugin (recommended)
 
-The repo is also a Claude Code **plugin marketplace**. Installing the plugin wires up
-everything at once — the skill, the MCP server, slash commands, and a commit-gate hook:
+The repo is also a Claude Code **plugin marketplace**. Installing the plugin wires up the
+guardrails at once — skill, slash commands, and a commit-gate hook:
 
 ```
 /plugin marketplace add JGalbss/agent-doctor
@@ -11,18 +11,14 @@ everything at once — the skill, the MCP server, slash commands, and a commit-g
 ```
 
 What you get (source: `plugins/agent-doctor/`):
-- **Skill** — teaches the agent to use `verify`/`impact`/`gate`/`merge` in your repo.
-- **MCP server** — `agent-doctor serve --mcp` via `npx` (zero local install), exposing the
-  kernel's ground-truth tools (`symbol_exists`, `impact`, `gate`, `context_pack`).
-- **Slash commands** — `/agent-doctor:verify`, `/agent-doctor:impact`, `/agent-doctor:gate`.
+- **Skill** — teaches the agent to use `verify`/`gate`/`merge` in your repo.
+- **Slash commands** — `/agent-doctor:verify`, `/agent-doctor:gate`, `/agent-doctor:merge`.
 - **Commit-gate hook** — a `PreToolUse(Bash)` hook that runs `agent-doctor verify` whenever
-  the agent runs `git commit` / `git push` / `gt submit`, and **blocks** it on a real
-  failure (policy/lease violation or a failing impacted test). It no-ops if the toolkit
-  isn't installed and never blocks for setup reasons — only genuine, deterministic failures.
+  the agent runs `git commit` / `git push` / `gt submit`, and **blocks** it on a real failure
+  (policy/lease violation or failing tests). It no-ops if the toolkit isn't installed and
+  never blocks for setup reasons — only genuine, deterministic failures.
 
-For the CLI it shells out to (`verify`/`gate`/`impact`), install the binary too:
-`npm i -g @jgalbsss/agent-doctor` (the MCP server already runs via `npx`).
-
+Install the binary the hook shells out to: `npm i -g @jgalbsss/agent-doctor`.
 Validate the plugin locally with `claude plugin validate ./plugins/agent-doctor`.
 
 ---
@@ -35,11 +31,11 @@ plugin SDK to target. It doesn't need one: Graphite runs **standard git hooks**,
 command that ties it together is:
 
 ```sh
-agent-doctor verify   # gate the diff, then select (and optionally run) the impacted tests
+agent-doctor verify   # gate the diff, then optionally run your tests
 ```
 
-`verify` exits non-zero if the diff violates policy/ACL/leases, or (with `--run`) if the
-impacted tests fail. It's fast because it runs *only* the tests reaching your change.
+`verify` exits non-zero if the diff violates policy/ACL/leases, or (with `--run`) if your
+tests fail.
 
 ## Graphite (`gt`) — verify on every submit
 
@@ -56,17 +52,17 @@ This writes `.git/hooks/pre-push`:
 exec agent-doctor verify
 ```
 
-Now `gt submit` (which pushes) runs `verify` first. If the gate fails or impacted tests
+Now `gt submit` (which pushes) runs `verify` first. If the gate fails or the tests
 fail, the submit is blocked — locally, in seconds, before CI ever runs.
 
-Run the impacted tests too (not just list them):
+Run your tests too (not just gate):
 
 ```sh
 # in .git/hooks/pre-push
 exec agent-doctor verify --run "npx vitest run"
 ```
 
-The selected test files are appended to that command, so only the relevant tests run.
+Your test command runs as given (it can scope itself, e.g. `--changed`).
 
 Notes:
 - `gt submit --no-verify` bypasses hooks (Graphite honors the standard flag) — for the
@@ -76,7 +72,7 @@ Notes:
 ## CI — the same check as a GitHub Action
 
 Graphite surfaces GitHub checks in its UI, so run `verify` server-side too. This replaces
-"submit and wait for the full suite" with an impact-scoped check:
+"submit and wait" with a fast gate before merge:
 
 ```yaml
 # .github/workflows/verify.yml
@@ -105,6 +101,5 @@ gship() { agent-doctor verify --run "npx vitest run" && gt submit "$@"; }
 
 ## What verify is (and isn't)
 
-It's a deterministic **fact check** — policy/lease violations and the exact impacted
-tests — not a style opinion. It composes the same `gate` and `impact` the agents use, so
+It's a deterministic **fact check** — policy/lease violations — not a style opinion. It runs the same `gate` the agents use, so
 humans and agents pass through the identical bar.
