@@ -20,6 +20,13 @@ pub(crate) struct FileAnalysis {
     pub functions: Vec<FunctionEntry>,
 }
 
+/// Whether a path is a test file, by the same path conventions the scorer uses
+/// (`test`/`tests`/`__tests__`/`e2e` segments, or `.test.`/`.spec.`/`-test.`).
+/// Public so the impact layer selects tests without re-deriving the rule.
+pub fn is_test_file(path: &str) -> bool {
+    classify_file(path) == FileContext::Test
+}
+
 /// Test files keep their diagnostics in the report but (mostly) out of the
 /// score — deliberate rule-breaking is normal in tests.
 pub(crate) fn classify_file(path: &str) -> FileContext {

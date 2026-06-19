@@ -56,6 +56,10 @@ pub struct FileSymbols {
     pub content_hash: ContentHash,
     pub defs: Vec<SymbolDef>,
     pub imports: Vec<ImportEdge>,
+    /// Heuristic: the file uses dynamic `import()` or `require()`, whose targets
+    /// the static graph cannot resolve. Consumers surface this as a
+    /// coverage/selection risk rather than silently under-approximating.
+    pub dynamic_imports: bool,
 }
 
 /// An import edge resolved to the file it points at within the graph.
@@ -172,6 +176,7 @@ fn analyze_file(path: &str, source: &str) -> FileSymbols {
         content_hash: ContentHash::of(source),
         defs: Vec::new(),
         imports: Vec::new(),
+        dynamic_imports: source.contains("import(") || source.contains("require("),
     };
     let allocator = Allocator::default();
     let source_type = SourceType::from_path(path).unwrap_or_else(|_| SourceType::ts());

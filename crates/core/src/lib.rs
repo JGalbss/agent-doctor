@@ -28,9 +28,10 @@ pub use diagnostics::{Category, Diagnostic, FileContext, RuleMeta, Severity};
 pub use engine::{detect_effect_major, scan, ScanOptions, ScanResult};
 pub use examples::{example_for, RuleExample};
 #[cfg(feature = "native")]
-pub use git_scope::ScanScope;
+pub use git_scope::{collect_diff, resolve_base, DiffInfo, ScanScope};
 #[cfg(feature = "native")]
 pub use index::Index;
+pub use lint::is_test_file;
 pub use lint::{lint_source, lint_source_opts, lint_source_with, LintOptions};
 pub use rules::{all_metas, RULES};
 pub use score::{compute_score, ScoreReport, SCORE_GOOD_THRESHOLD, SCORE_OK_THRESHOLD};
