@@ -11,7 +11,7 @@
 //! with "leverage, not judgment". A smarter model doesn't make this redundant;
 //! ground-truth ownership and architecture boundaries aren't in its context.
 
-mod glob;
+pub mod glob;
 mod lease;
 
 use std::path::Path;

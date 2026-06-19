@@ -83,6 +83,12 @@ impl Kernel {
         self.deps = DepGraph::build(self.index.graph());
     }
 
+    /// The symbol graph (read-only) — for consumers like the orchestrator that
+    /// estimate footprints from the import graph.
+    pub fn graph(&self) -> &agent_doctor_core::SymbolGraph {
+        self.index.graph()
+    }
+
     /// Definitions matching `name` across the repo (the "does this exist?" query).
     pub fn symbol_exists(&self, name: &str) -> Vec<SymbolHit> {
         self.index
