@@ -72,6 +72,8 @@ from: **[oc]** = opencode `AGENTS.md`, **[rogo]** = the Rogo TS conventions,
   `agent-no-inline-import` [rogo]
 - **No inline `import("...").Foo` type refs.** Use a top-level `import type`. —
   `agent-no-inline-type-import` [rogo]
+- **No `export *` barrels.** Re-export named bindings explicitly. —
+  `agent-no-export-star` [rogo]
 
 ## Modules
 
