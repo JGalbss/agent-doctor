@@ -15,6 +15,8 @@ mod rules;
 mod runner;
 mod score;
 mod structural;
+mod symbol_graph;
+mod text;
 #[cfg(feature = "native")]
 mod walk;
 
@@ -28,3 +30,6 @@ pub use git_scope::ScanScope;
 pub use lint::{lint_source, lint_source_opts, lint_source_with, LintOptions};
 pub use rules::{all_metas, RULES};
 pub use score::{compute_score, ScoreReport, SCORE_GOOD_THRESHOLD, SCORE_OK_THRESHOLD};
+pub use symbol_graph::{
+    FileSymbols, ImportEdge, ResolvedEdge, SymbolDef, SymbolGraph, SymbolKind,
+};

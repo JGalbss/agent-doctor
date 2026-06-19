@@ -11,6 +11,7 @@ use crate::diagnostics::{Diagnostic, FileContext, RawDiagnostic};
 use crate::effect_imports::EffectImports;
 use crate::fn_index::{self, FunctionEntry};
 use crate::runner::Runner;
+use crate::text::LineIndex;
 
 /// One file's full analysis: its diagnostics plus, under `--agent`, the indexed
 /// functions for the engine's cross-file "this already exists" pass.
@@ -141,28 +142,12 @@ fn finalize(
     if raw.is_empty() {
         return Vec::new();
     }
-    let line_starts: Vec<usize> = std::iter::once(0)
-        .chain(
-            source
-                .bytes()
-                .enumerate()
-                .filter(|(_, byte)| *byte == b'\n')
-                .map(|(offset, _)| offset + 1),
-        )
-        .collect();
+    let lines = LineIndex::new(source);
 
     raw.into_iter()
         .map(|diagnostic| {
             let offset = diagnostic.span.start as usize;
-            let line_index = match line_starts.binary_search(&offset) {
-                Ok(index) => index,
-                Err(index) => index - 1,
-            };
-            let line_start = line_starts[line_index];
-            let line_end = source[line_start..]
-                .find('\n')
-                .map(|relative| line_start + relative)
-                .unwrap_or(source.len());
+            let (line, column) = lines.line_col(offset);
             Diagnostic {
                 rule: diagnostic.meta.id,
                 severity: diagnostic.severity.unwrap_or(diagnostic.meta.severity),
@@ -171,9 +156,9 @@ fn finalize(
                 help: diagnostic.meta.help,
                 file: display_path.to_string(),
                 file_context,
-                line: (line_index + 1) as u32,
-                column: (offset - line_start + 1) as u32,
-                snippet: source[line_start..line_end].trim_end().to_string(),
+                line,
+                column,
+                snippet: lines.line_text(source, offset).to_string(),
             }
         })
         .collect()

@@ -22,6 +22,7 @@ use crate::diagnostics::{Category, Diagnostic, FileContext, RuleMeta, Severity};
 use crate::lint::classify_file;
 use crate::matchers::unwrap_parens;
 use crate::structural::{self, Shape};
+use crate::text::LineIndex;
 
 static DUPLICATE_CROSS_FILE: RuleMeta = RuleMeta {
     id: "agent-duplicate-cross-file",
@@ -94,18 +95,10 @@ pub fn collect_from_program(
     source: &str,
     display_path: &str,
 ) -> Vec<FunctionEntry> {
-    let line_starts: Vec<usize> = std::iter::once(0)
-        .chain(
-            source
-                .bytes()
-                .enumerate()
-                .filter(|(_, byte)| *byte == b'\n')
-                .map(|(offset, _)| offset + 1),
-        )
-        .collect();
+    let lines = LineIndex::new(source);
     let mut collector = EntryCollector {
         source,
-        line_starts: &line_starts,
+        lines: &lines,
         file: display_path,
         file_context: classify_file(display_path),
         entries: Vec::new(),
@@ -116,7 +109,7 @@ pub fn collect_from_program(
 
 struct EntryCollector<'a> {
     source: &'a str,
-    line_starts: &'a [usize],
+    lines: &'a LineIndex,
     file: &'a str,
     file_context: FileContext,
     entries: Vec<FunctionEntry>,
@@ -125,22 +118,14 @@ struct EntryCollector<'a> {
 impl EntryCollector<'_> {
     fn push(&mut self, name: Option<String>, shape: Shape, span: oxc_span::Span) {
         let offset = span.start as usize;
-        let line_index = match self.line_starts.binary_search(&offset) {
-            Ok(index) => index,
-            Err(index) => index - 1,
-        };
-        let line_start = self.line_starts[line_index];
-        let line_end = self.source[line_start..]
-            .find('\n')
-            .map(|relative| line_start + relative)
-            .unwrap_or(self.source.len());
+        let (line, column) = self.lines.line_col(offset);
         self.entries.push(FunctionEntry {
             file: self.file.to_string(),
             file_context: self.file_context,
             name,
-            line: (line_index + 1) as u32,
-            column: (offset - line_start + 1) as u32,
-            snippet: self.source[line_start..line_end].trim_end().to_string(),
+            line,
+            column,
+            snippet: self.lines.line_text(self.source, offset).to_string(),
             shape,
         });
     }
