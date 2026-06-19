@@ -262,22 +262,27 @@ fn process_file(root: &Path, path: &Path, options: LintOptions) -> Option<FileOu
 /// Build the repo-wide symbol graph and emit `agent-no-single-use-helper`
 /// findings — exported helpers imported by exactly one module. Reads each
 /// flagged definition's source line for the diagnostic snippet.
+///
+/// NOTE: this parses the repo a second time (the per-file scan already parsed
+/// for lint/fn_index). It's gated to `--agent` and is the seam where the
+/// `Index` is meant to subsume the function index, after which both share one
+/// parse.
 fn single_use_findings(root: &Path) -> Vec<Diagnostic> {
     let index = crate::index::Index::build(root);
     let hits = crate::single_use::analyze(index.graph());
-    let mut sources: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    // Cache each flagged file's source once; pull the single definition line.
+    let mut sources: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     hits.iter()
         .map(|hit| {
-            let lines = sources.entry(hit.file.clone()).or_insert_with(|| {
-                fs::read_to_string(root.join(&hit.file))
-                    .map(|text| text.lines().map(str::to_string).collect())
-                    .unwrap_or_default()
-            });
-            let snippet = lines
-                .get(hit.line.saturating_sub(1) as usize)
-                .map(|line| line.trim().to_string())
-                .unwrap_or_default();
+            let source = sources
+                .entry(hit.file.clone())
+                .or_insert_with(|| fs::read_to_string(root.join(&hit.file)).unwrap_or_default());
+            let snippet = source
+                .lines()
+                .nth(hit.line.saturating_sub(1) as usize)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
             crate::single_use::to_diagnostic(hit, snippet)
         })
         .collect()

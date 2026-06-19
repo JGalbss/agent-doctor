@@ -340,16 +340,13 @@ fn describe(entry: &FunctionEntry, partner: &FunctionEntry, relation: &str) -> S
 }
 
 fn to_diagnostic(meta: &'static RuleMeta, entry: &FunctionEntry, message: String) -> Diagnostic {
-    Diagnostic {
-        rule: meta.id,
-        severity: meta.severity,
-        category: meta.category,
+    Diagnostic::from_meta(
+        meta,
         message,
-        help: meta.help,
-        file: entry.file.clone(),
-        file_context: entry.file_context,
-        line: entry.line,
-        column: entry.column,
-        snippet: entry.snippet.clone(),
-    }
+        entry.file.clone(),
+        entry.file_context,
+        entry.line,
+        entry.column,
+        entry.snippet.clone(),
+    )
 }

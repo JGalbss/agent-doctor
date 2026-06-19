@@ -81,19 +81,17 @@ pub fn to_diagnostic(hit: &SingleUseHit, snippet: String) -> Diagnostic {
         true => FileContext::Test,
         false => FileContext::Production,
     };
-    Diagnostic {
-        rule: SINGLE_USE.id,
-        severity: SINGLE_USE.severity,
-        category: SINGLE_USE.category,
-        message: format!(
-            "`{}` is exported but imported by only one module ({}) — inline or co-locate it unless it's a real reusable boundary",
-            hit.name, hit.importer
-        ),
-        help: SINGLE_USE.help,
-        file: hit.file.clone(),
+    let message = format!(
+        "`{}` is exported but imported by only one module ({}) — inline or co-locate it unless it's a real reusable boundary",
+        hit.name, hit.importer
+    );
+    Diagnostic::from_meta(
+        &SINGLE_USE,
+        message,
+        hit.file.clone(),
         file_context,
-        line: hit.line,
-        column: hit.column,
+        hit.line,
+        hit.column,
         snippet,
-    }
+    )
 }

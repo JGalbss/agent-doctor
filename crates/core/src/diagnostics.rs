@@ -82,3 +82,31 @@ pub struct Diagnostic {
     pub column: u32,
     pub snippet: String,
 }
+
+impl Diagnostic {
+    /// Build a diagnostic from its rule metadata plus the located fields.
+    /// Shared by the cross-file passes so they don't each repeat the
+    /// `rule`/`severity`/`category`/`help`-from-meta wiring.
+    pub(crate) fn from_meta(
+        meta: &'static RuleMeta,
+        message: String,
+        file: String,
+        file_context: FileContext,
+        line: u32,
+        column: u32,
+        snippet: String,
+    ) -> Diagnostic {
+        Diagnostic {
+            rule: meta.id,
+            severity: meta.severity,
+            category: meta.category,
+            message,
+            help: meta.help,
+            file,
+            file_context,
+            line,
+            column,
+            snippet,
+        }
+    }
+}
