@@ -78,6 +78,21 @@ fn const_binding_without_reassignment_is_not_mutation() {
 }
 
 #[test]
+fn flags_inline_dynamic_import_and_require() {
+    let source = src(
+        "export const load = async (path: string) => {\n  const mod = await import(\"./parser\")\n  const fs = require(\"node:fs\")\n  return mod.parse(fs.readFileSync(path))\n}\n",
+    );
+    // dynamic import() + require() → two inline-import findings.
+    assert_fires_agent(&source, "agent-no-inline-import", 2);
+}
+
+#[test]
+fn top_level_static_import_is_fine() {
+    let source = src("export const f = (n: number) => n + 1\n");
+    assert_fires_agent(&source, "agent-no-inline-import", 0);
+}
+
+#[test]
 fn flags_duplicate_function_bodies() {
     let source = src(
         "export const barFill = (p: number) => {\n  const list = collect(p)\n  for (const x of list) {\n    push(x)\n  }\n  return list.length > 0 ? list[0] : null\n}\n\nexport const textFill = (q: number) => {\n  const list = collect(q)\n  for (const x of list) {\n    push(x)\n  }\n  return list.length > 0 ? list[0] : null\n}\n",

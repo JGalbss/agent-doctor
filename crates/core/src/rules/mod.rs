@@ -1,8 +1,8 @@
 use oxc_ast::ast::{
     ArrowFunctionExpression, AssignmentExpression, BinaryExpression, CallExpression, Class,
-    ConditionalExpression, Function, IfStatement, ImportDeclaration, NewExpression,
-    ReturnStatement, Statement, StaticMemberExpression, SwitchStatement, TaggedTemplateExpression,
-    ThrowStatement, TryStatement, VariableDeclaration, YieldExpression,
+    ConditionalExpression, Function, IfStatement, ImportDeclaration, ImportExpression,
+    NewExpression, ReturnStatement, Statement, StaticMemberExpression, SwitchStatement,
+    TaggedTemplateExpression, ThrowStatement, TryStatement, VariableDeclaration, YieldExpression,
 };
 use oxc_span::Span;
 
@@ -178,6 +178,7 @@ pub trait Rule: Sync {
     fn on_conditional(&self, _conditional: &ConditionalExpression<'_>, _ctx: &mut FileCtx) {}
     fn on_var_decl(&self, _decl: &VariableDeclaration<'_>, _ctx: &mut FileCtx) {}
     fn on_assignment(&self, _assignment: &AssignmentExpression<'_>, _ctx: &mut FileCtx) {}
+    fn on_import_expression(&self, _import: &ImportExpression<'_>, _ctx: &mut FileCtx) {}
     fn on_return(&self, _return_stmt: &ReturnStatement<'_>, _ctx: &mut FileCtx) {}
     /// Any loop statement (for / for-of / for-in / while / do-while).
     fn on_loop(&self, _loop_span: Span, _body: &Statement<'_>, _ctx: &mut FileCtx) {}

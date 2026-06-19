@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use oxc_ast::ast::{
     ArrowFunctionExpression, AssignmentExpression, BinaryExpression, CallExpression, Class,
     ConditionalExpression, DoWhileStatement, Expression, ForInStatement, ForOfStatement,
-    ForStatement, Function, IfStatement, ImportDeclaration, NewExpression, Program,
-    ReturnStatement, StaticMemberExpression, SwitchStatement, TaggedTemplateExpression,
+    ForStatement, Function, IfStatement, ImportDeclaration, ImportExpression, NewExpression,
+    Program, ReturnStatement, StaticMemberExpression, SwitchStatement, TaggedTemplateExpression,
     ThrowStatement, TryStatement, VariableDeclaration, WhileStatement, YieldExpression,
 };
 use oxc_ast_visit::{walk, Visit};
@@ -196,6 +196,13 @@ impl<'a> Visit<'a> for Runner {
             rule.on_assignment(assignment, &mut self.ctx);
         }
         walk::walk_assignment_expression(self, assignment);
+    }
+
+    fn visit_import_expression(&mut self, import: &ImportExpression<'a>) {
+        for rule in self.rules() {
+            rule.on_import_expression(import, &mut self.ctx);
+        }
+        walk::walk_import_expression(self, import);
     }
 
     fn visit_static_member_expression(&mut self, member: &StaticMemberExpression<'a>) {

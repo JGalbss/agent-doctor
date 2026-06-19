@@ -760,6 +760,14 @@
     "severity": "warn"
   },
   {
+    "bad": "export const load = async () => {\n  const { parse } = await import(\"./parser\") // inline\n  const fs = require(\"node:fs\")\n  return parse(fs.readFileSync(path))\n}",
+    "category": "Agent hygiene",
+    "good": "import { parse } from \"./parser\"\nimport * as fs from \"node:fs\"\n\nexport const load = () => parse(fs.readFileSync(path))",
+    "help": "Inline `await import(...)` / `require(...)` hides a module's dependencies mid-body — agents add them to dodge a missing top-level import. Hoist to a static top-level `import` (keep dynamic import only for deliberate code-splitting).",
+    "id": "agent-no-inline-import",
+    "severity": "warn"
+  },
+  {
     "bad": "const usageBarFill = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageText = (p) => p >= 100 ? red : p >= 80 ? amber : gray // copy-paste",
     "category": "Agent hygiene",
     "good": "const usageTone = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageBarFill = usageTone\nconst usageText = usageTone",

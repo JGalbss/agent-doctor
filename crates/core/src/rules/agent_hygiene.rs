@@ -11,14 +11,14 @@ use std::collections::HashMap;
 
 use oxc_ast::ast::{
     ArrowFunctionExpression, AssignmentExpression, AssignmentTarget, BinaryExpression,
-    ConditionalExpression, Expression, Function, FunctionBody, IfStatement, Statement,
-    VariableDeclaration, VariableDeclarationKind,
+    CallExpression, ConditionalExpression, Expression, Function, FunctionBody, IfStatement,
+    ImportExpression, Statement, VariableDeclaration, VariableDeclarationKind,
 };
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
 
 use crate::diagnostics::{Category, RuleMeta, Severity};
-use crate::matchers::unwrap_parens;
+use crate::matchers::{ident_name, unwrap_parens};
 use crate::rules::{FileCtx, Rule};
 use crate::structural;
 
@@ -69,6 +69,13 @@ static MUTATION: RuleMeta = RuleMeta {
     severity: Severity::Warn,
     category: Category::AgentHygiene,
     help: "Reassigning a binding or mutating a payload in place creates intermediate states that are hard to follow. Derive the final value in one expression (const + Match/reduce/pipe) instead of building it up by mutation.",
+};
+
+static INLINE_IMPORT: RuleMeta = RuleMeta {
+    id: "agent-no-inline-import",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "Inline `await import(...)` / `require(...)` hides a module's dependencies mid-body — agents add them to dodge a missing top-level import. Hoist to a static top-level `import` (keep dynamic import only for deliberate code-splitting).",
 };
 
 fn is_equality(operator: BinaryOperator) -> bool {
@@ -137,6 +144,7 @@ impl Rule for AgentHygiene {
             &RAW_LOOP,
             &LET_BINDING,
             &MUTATION,
+            &INLINE_IMPORT,
             &DUPLICATE_FUNCTION,
         ];
         METAS
@@ -245,6 +253,28 @@ impl Rule for AgentHygiene {
             &MUTATION,
             assignment.span,
             format!("{kind} — derive the final value once (const + Match/reduce/pipe) instead of building it up"),
+        );
+    }
+
+    fn on_import_expression(&self, import: &ImportExpression<'_>, ctx: &mut FileCtx) {
+        if !ctx.agent_active() {
+            return;
+        }
+        ctx.report_agent(
+            &INLINE_IMPORT,
+            keyword_span(import.span, 6),
+            "inline dynamic import() — hoist to a top-level `import` unless this is deliberate code-splitting".to_string(),
+        );
+    }
+
+    fn on_call(&self, call: &CallExpression<'_>, ctx: &mut FileCtx) {
+        if !ctx.agent_active() || ident_name(&call.callee) != Some("require") {
+            return;
+        }
+        ctx.report_agent(
+            &INLINE_IMPORT,
+            call.span,
+            "require(...) — use a static top-level ESM `import` instead".to_string(),
         );
     }
 

@@ -396,6 +396,10 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "const usageBarFill = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageText = (p) => p >= 100 ? red : p >= 80 ? amber : gray // copy-paste",
             "const usageTone = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageBarFill = usageTone\nconst usageText = usageTone",
         ),
+        "agent-no-inline-import" => (
+            "export const load = async () => {\n  const { parse } = await import(\"./parser\") // inline\n  const fs = require(\"node:fs\")\n  return parse(fs.readFileSync(path))\n}",
+            "import { parse } from \"./parser\"\nimport * as fs from \"node:fs\"\n\nexport const load = () => parse(fs.readFileSync(path))",
+        ),
         "agent-no-mutation" => (
             "let softCeiling = 0\nif (hasSoft) {\n  softCeiling = softCap + freeAllowance // reassigned\n}\npayload.total = softCeiling // mutated in place",
             "const softCeiling = hasSoft ? softCap + freeAllowance : 0\nconst payload = { ...base, total: softCeiling } // derived once, no mutation",

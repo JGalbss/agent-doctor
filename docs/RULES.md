@@ -154,6 +154,7 @@ refactor suggestion, not a violation. All AST-only; fire file-wide in any file i
 | `agent-no-raw-loop` | warn | AST | raw `for`/`for-of`/`for-in`/`while`/`do-while` → `Array.map/filter/reduce` or `Effect.forEach`/`Effect.reduce` |
 | `agent-no-let` | warn | AST | `let`/`var` mutation → `const` + functional construction (reduce/Match/pipeline) |
 | `agent-no-mutation` | warn | AST | reassignment (`x = …`) or in-place payload mutation (`obj.k = …`) → derive the final value once instead of intermediate states |
+| `agent-no-inline-import` | warn | AST | inline `await import(...)` / `require(...)` → hoist to a static top-level `import` (dynamic only for deliberate code-splitting) |
 | `agent-duplicate-function` | info | AST | two functions in one file with a structurally identical body (renamed copy-paste) → extract a shared helper |
 
 ### Cross-file "this already exists" (engine pass, `--agent`)
