@@ -10,6 +10,7 @@ members = [
     "crates/merge",
     "crates/server",
     "crates/orchestrator",
+    "crates/vcs",
 ]
 
 [workspace.package]
@@ -25,6 +26,7 @@ agent_doctor_policy = { path = "crates/policy" }
 agent_doctor_merge = { path = "crates/merge" }
 agent_doctor_server = { path = "crates/server" }
 agent_doctor_orchestrator = { path = "crates/orchestrator" }
+agent_doctor_vcs = { path = "crates/vcs" }
 
 oxc_allocator = "0.135"
 oxc_parser = "0.135"

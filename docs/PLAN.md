@@ -14,8 +14,15 @@ Design lives in [TOOLKIT.md](./TOOLKIT.md) — read the referenced section befor
   `agent-doctor impact`.
 - **Phase 3** — ✅ `crates/merge`: decl-level 3-way semantic merge (reorder/format-invariant,
   changed-symbols, safe fallback) + `agent-doctor merge` git driver, **proven e2e**.
+- **Phase 4** — ✅ `crates/server`: warm `Kernel` (symbol_exists/impact/gate/context_pack) +
+  line-delimited JSON dispatch + `agent-doctor serve`.
+- **Phase 5** — ✅ `crates/orchestrator`: ledger/DAG, footprint estimation, live frontier dedup,
+  and the deterministic run loop (lease → context → execute → gate → retry-with-findings).
 - **Phase 7** — ✅ `crates/bench` + `bench/run.sh` + `bench/RESULTS.md`.
-- Next: Phase 4 (server / context API), Phase 5 (orchestrator), Phase 6 (agent-native VCS).
+- **Phase 6** — foundation: `Vcs` trait + git adapter (isolated workspaces, diff, semantic
+  merge). The full *native* jj-inspired VCS remains the explicitly-deferred long tail
+  (correctness/test cost ≈ jj's 112k test LOC); built behind the trait so it swaps in later.
+- **Totals:** 9 crates, 230 workspace tests passing; merge driver / serve / gate proven e2e.
 
 ## How to run this with `/loop`
 
