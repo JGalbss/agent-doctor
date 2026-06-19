@@ -1,12 +1,12 @@
 [package]
-name = "agent-doctor"
+name = "agent_doctor_bench"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "agent-doctor"
+name = "agent-doctor-bench"
 path = "src/main.rs"
 
 [dependencies]
@@ -14,9 +14,3 @@ agent_doctor_core.workspace = true
 agent_doctor_impact.workspace = true
 agent_doctor_policy.workspace = true
 agent_doctor_merge.workspace = true
-agent_doctor_server.workspace = true
-serde_json.workspace = true
-clap = { version = "4", features = ["derive"] }
-anstyle = "1"
-lsp-server = "0.7"
-lsp-types = "=0.94.1"

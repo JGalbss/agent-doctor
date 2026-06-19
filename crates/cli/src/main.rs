@@ -104,6 +104,63 @@ enum Command {
     },
     /// Run as a language server over stdio (editor diagnostics)
     Lsp,
+    /// Select the tests impacted by the working diff (impact-based selection)
+    Impact {
+        /// Diff base ref (default: merge-base with main)
+        #[arg(long)]
+        base: Option<String>,
+        /// Emit the result as JSON
+        #[arg(long)]
+        json: bool,
+        /// Tests to always include regardless of the diff (repeatable)
+        #[arg(long = "always-run")]
+        always_run: Vec<String>,
+    },
+    /// Gate the working diff against policy/ACL/leases (deterministic deny)
+    Gate {
+        /// Diff base ref (default: merge-base with main)
+        #[arg(long)]
+        base: Option<String>,
+        /// Acting agent id (enables ACL + lease checks)
+        #[arg(long)]
+        actor: Option<String>,
+        /// Policy file (default: agent-doctor.policy.toml)
+        #[arg(long, default_value = "agent-doctor.policy.toml")]
+        policy: PathBuf,
+        /// Leases file (default: .agent-doctor/leases.json)
+        #[arg(long, default_value = ".agent-doctor/leases.json")]
+        leases: PathBuf,
+        /// Emit violations as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Semantic (AST-level) 3-way merge driver for TypeScript files
+    Merge {
+        /// Base (common ancestor) file
+        base: PathBuf,
+        /// Ours (current) file — receives the merged result unless --output
+        ours: PathBuf,
+        /// Theirs (other) file
+        theirs: PathBuf,
+        /// Write merged output here instead of overwriting <ours>
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Print the merge result as JSON instead of writing a file
+        #[arg(long)]
+        json: bool,
+    },
+    /// Run the context server: warm kernel answering line-delimited JSON queries
+    Serve {
+        /// Policy file (default: agent-doctor.policy.toml)
+        #[arg(long, default_value = "agent-doctor.policy.toml")]
+        policy: PathBuf,
+        /// Leases file (default: .agent-doctor/leases.json)
+        #[arg(long, default_value = ".agent-doctor/leases.json")]
+        leases: PathBuf,
+        /// Speak the Model Context Protocol (MCP) instead of plain JSON
+        #[arg(long)]
+        mcp: bool,
+    },
 }
 
 fn run_explain(rule_id: &str) -> ExitCode {
@@ -191,6 +248,257 @@ fn run_rules(json: bool) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// `agent-doctor impact` — build the index, diff against the base, and report
+/// the tests reaching the change.
+fn run_impact(
+    root: &std::path::Path,
+    base: Option<&str>,
+    json: bool,
+    always_run: Vec<String>,
+) -> ExitCode {
+    let resolved_base = match agent_doctor_core::resolve_base(root, base) {
+        Ok(base) => base,
+        Err(error) => {
+            eprintln!("agent-doctor impact: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let diff = match agent_doctor_core::collect_diff(root, &resolved_base, false) {
+        Ok(diff) => diff,
+        Err(error) => {
+            eprintln!("agent-doctor impact: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut changed: Vec<String> = diff.files.keys().cloned().collect();
+    changed.sort();
+    let index = agent_doctor_core::Index::build(root);
+    let result = agent_doctor_impact::select(
+        index.graph(),
+        &changed,
+        &agent_doctor_impact::ImpactConfig { always_run },
+    );
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).expect("serializable impact result")
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    let p = palette();
+    println!();
+    println!(
+        "  {}impact{}  {}{} changed file{} → {} test{} to run{}",
+        p.bold,
+        p.reset,
+        p.dim,
+        changed.len(),
+        plural(changed.len()),
+        result.tests.len(),
+        plural(result.tests.len()),
+        p.reset
+    );
+    println!();
+    for test in &result.tests {
+        println!("  {}{}{}", p.cyan, test, p.reset);
+    }
+    if result.tests.is_empty() {
+        println!("  {}no tests reach this change{}", p.dim, p.reset);
+    }
+    for caveat in &result.caveats {
+        println!();
+        println!("  {}⚠ {}{}", p.yellow, caveat, p.reset);
+    }
+    println!();
+    ExitCode::SUCCESS
+}
+
+/// `agent-doctor gate` — evaluate the working diff against policy + leases.
+/// Exits non-zero when any violation is found (CI/agent gate).
+fn run_gate(
+    root: &std::path::Path,
+    base: Option<&str>,
+    actor: Option<&str>,
+    policy_path: &std::path::Path,
+    leases_path: &std::path::Path,
+    json: bool,
+) -> ExitCode {
+    let policy = match agent_doctor_policy::Policy::load(policy_path) {
+        Ok(policy) => policy,
+        Err(error) => {
+            eprintln!("agent-doctor gate: policy: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let resolved_base = match agent_doctor_core::resolve_base(root, base) {
+        Ok(base) => base,
+        Err(error) => {
+            eprintln!("agent-doctor gate: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let diff = match agent_doctor_core::collect_diff(root, &resolved_base, false) {
+        Ok(diff) => diff,
+        Err(error) => {
+            eprintln!("agent-doctor gate: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let leases = match agent_doctor_policy::LeaseSet::load(leases_path) {
+        Ok(leases) => leases,
+        Err(error) => {
+            eprintln!("agent-doctor gate: leases: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut changed: Vec<String> = diff.files.keys().cloned().collect();
+    changed.sort();
+    let index = agent_doctor_core::Index::build(root);
+    let violations = agent_doctor_policy::evaluate(&agent_doctor_policy::GateInput {
+        policy: &policy,
+        graph: index.graph(),
+        changed: &changed,
+        actor,
+        leases: Some(&leases),
+    });
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&violations).expect("serializable violations")
+        );
+        return gate_exit(&violations);
+    }
+
+    let p = palette();
+    println!();
+    if violations.is_empty() {
+        println!("  {}✓ gate passed{} — no policy violations", p.green, p.reset);
+        println!();
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "  {}✖ gate failed{} — {} violation{}",
+        p.red,
+        p.reset,
+        violations.len(),
+        plural(violations.len())
+    );
+    println!();
+    for violation in &violations {
+        println!(
+            "  {}{:?}{} {}{}{}",
+            p.red,
+            violation.kind,
+            p.reset,
+            p.cyan,
+            violation.file,
+            p.reset
+        );
+        println!("    {}{}{}", p.dim, violation.reason, p.reset);
+    }
+    println!();
+    gate_exit(&violations)
+}
+
+fn gate_exit(violations: &[agent_doctor_policy::Violation]) -> ExitCode {
+    if violations.is_empty() {
+        return ExitCode::SUCCESS;
+    }
+    ExitCode::FAILURE
+}
+
+/// `agent-doctor merge` — semantic 3-way merge. Writes the result to `<ours>`
+/// (git merge-driver convention) or `--output`, and exits non-zero on conflict.
+fn run_merge(
+    base: &std::path::Path,
+    ours: &std::path::Path,
+    theirs: &std::path::Path,
+    output: Option<&std::path::Path>,
+    json: bool,
+) -> ExitCode {
+    let read = |path: &std::path::Path| std::fs::read_to_string(path);
+    let (base_src, ours_src, theirs_src) = match (read(base), read(ours), read(theirs)) {
+        (Ok(b), Ok(o), Ok(t)) => (b, o, t),
+        _ => {
+            eprintln!("agent-doctor merge: could not read one of the input files");
+            return ExitCode::from(2);
+        }
+    };
+    let result = agent_doctor_merge::merge(&base_src, &ours_src, &theirs_src);
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).expect("serializable merge result")
+        );
+        return merge_exit(result.is_clean());
+    }
+
+    let destination = output.unwrap_or(ours);
+    if let Err(error) = std::fs::write(destination, &result.merged) {
+        eprintln!("agent-doctor merge: write {}: {error}", destination.display());
+        return ExitCode::from(2);
+    }
+    let p = palette();
+    if result.is_clean() {
+        eprintln!(
+            "  {}✓ merged cleanly{}{}",
+            p.green,
+            p.reset,
+            if result.fell_back { " (line fallback)" } else { "" }
+        );
+    } else {
+        eprintln!(
+            "  {}✖ {} conflict{}{} — markers written to {}",
+            p.red,
+            result.conflicts.len(),
+            plural(result.conflicts.len()),
+            p.reset,
+            destination.display()
+        );
+        for conflict in &result.conflicts {
+            eprintln!("    {}{}{}", p.dim, conflict.description, p.reset);
+        }
+    }
+    merge_exit(result.is_clean())
+}
+
+fn merge_exit(clean: bool) -> ExitCode {
+    if clean {
+        return ExitCode::SUCCESS;
+    }
+    ExitCode::FAILURE
+}
+
+/// `agent-doctor serve` — build the warm kernel and answer queries on stdio,
+/// either as plain line-delimited JSON or as an MCP server (`--mcp`).
+fn run_serve(
+    root: &std::path::Path,
+    policy: &std::path::Path,
+    leases: &std::path::Path,
+    mcp: bool,
+) -> ExitCode {
+    let mut kernel = match agent_doctor_server::Kernel::build(root, policy, leases) {
+        Ok(kernel) => kernel,
+        Err(error) => {
+            eprintln!("agent-doctor serve: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let result = match mcp {
+        true => agent_doctor_server::serve_mcp(&mut kernel),
+        false => agent_doctor_server::serve(&mut kernel),
+    };
+    if let Err(error) = result {
+        eprintln!("agent-doctor serve: {error}");
+        return ExitCode::from(2);
+    }
+    ExitCode::SUCCESS
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match &cli.command {
@@ -203,6 +511,39 @@ fn main() -> ExitCode {
             }
             return ExitCode::SUCCESS;
         }
+        Some(Command::Impact {
+            base,
+            json,
+            always_run,
+        }) => return run_impact(&cli.path, base.as_deref(), *json, always_run.clone()),
+        Some(Command::Gate {
+            base,
+            actor,
+            policy,
+            leases,
+            json,
+        }) => {
+            return run_gate(
+                &cli.path,
+                base.as_deref(),
+                actor.as_deref(),
+                policy,
+                leases,
+                *json,
+            )
+        }
+        Some(Command::Merge {
+            base,
+            ours,
+            theirs,
+            output,
+            json,
+        }) => return run_merge(base, ours, theirs, output.as_deref(), *json),
+        Some(Command::Serve {
+            policy,
+            leases,
+            mcp,
+        }) => return run_serve(&cli.path, policy, leases, *mcp),
         None => {}
     }
     let result = match scan(&ScanOptions {
