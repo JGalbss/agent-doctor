@@ -3,11 +3,11 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand, ValueEnum};
-use effect_doctor_core::{
+use agent_doctor_core::{
     all_metas, example_for, scan, Diagnostic, FileContext, ScanOptions, ScanResult, ScanScope,
     Severity, SCORE_GOOD_THRESHOLD, SCORE_OK_THRESHOLD,
 };
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Clone, Copy, ValueEnum)]
 enum ScopeArg {
@@ -31,7 +31,7 @@ impl From<ScopeArg> for ScanScope {
 
 #[derive(Parser)]
 #[command(
-    name = "effect-doctor",
+    name = "agent-doctor",
     version,
     about = "Health checks for Effect TS codebases"
 )]
@@ -109,7 +109,7 @@ enum Command {
 fn run_explain(rule_id: &str) -> ExitCode {
     let p = palette();
     let Some(meta) = all_metas().into_iter().find(|meta| meta.id == rule_id) else {
-        eprintln!("unknown rule: {rule_id} — see `effect-doctor rules`");
+        eprintln!("unknown rule: {rule_id} — see `agent-doctor rules`");
         return ExitCode::from(2);
     };
     println!();
@@ -182,7 +182,7 @@ fn run_rules(json: bool) -> ExitCode {
     }
     println!();
     println!(
-        "  {}{} rules — `effect-doctor explain <rule>` for rewrite recipes{}",
+        "  {}{} rules — `agent-doctor explain <rule>` for rewrite recipes{}",
         p.dim,
         sorted.len(),
         p.reset
@@ -198,7 +198,7 @@ fn main() -> ExitCode {
         Some(Command::Rules { json }) => return run_rules(*json),
         Some(Command::Lsp) => {
             if let Err(error) = lsp::run() {
-                eprintln!("effect-doctor lsp: {error}");
+                eprintln!("agent-doctor lsp: {error}");
                 return ExitCode::from(2);
             }
             return ExitCode::SUCCESS;
@@ -217,7 +217,7 @@ fn main() -> ExitCode {
     }) {
         Ok(result) => result,
         Err(message) => {
-            eprintln!("effect-doctor: {message}");
+            eprintln!("agent-doctor: {message}");
             return ExitCode::from(2);
         }
     };
@@ -326,7 +326,7 @@ fn render(result: &ScanResult, verbose: bool, max_locations: usize) {
 
     println!();
     println!(
-        "  {}effect doctor{}  {}v{}{}",
+        "  {}agent doctor{}  {}v{}{}",
         p.bold,
         p.reset,
         p.dim,

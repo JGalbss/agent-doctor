@@ -1,6 +1,6 @@
 mod common;
 
-use effect_doctor_core::{compute_score, lint_source, FileContext, Severity};
+use agent_doctor_core::{compute_score, lint_source, FileContext, Severity};
 
 #[test]
 fn files_without_effect_imports_are_skipped() {

@@ -1,12 +1,12 @@
 {
-  "name": "effect-doctor-site",
+  "name": "agent-doctor-site",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "gen": "cd .. && cargo run -q -p effect-doctor -- rules --json > site/src/data/rules.json"
+    "gen": "cd .. && cargo run -q -p agent-doctor -- rules --json > site/src/data/rules.json"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.5",

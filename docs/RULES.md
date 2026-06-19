@@ -1,4 +1,4 @@
-# effect-doctor — Rule Catalog (spec)
+# agent-doctor — Rule Catalog (spec)
 
 Mined from Effect-TS/skills, effect-smol MIGRATION.md, @effect/language-service diagnostics
 (~75, the de facto prior art), and the v4 beta announcement. The official

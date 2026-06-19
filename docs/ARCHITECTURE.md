@@ -1,4 +1,4 @@
-# effect-doctor — Architecture
+# agent-doctor — Architecture
 
 A react.doctor-style health scanner for Effect TS codebases. Scan a repo, score it 0–100,
 report Effect anti-patterns with code frames, hand off fixes to AI agents. Built for massive
@@ -14,7 +14,7 @@ monorepos: target ~1–2s for 10k files.
   Import-aware matching via the parser ModuleRecord + symbol resolution — we know a binding
   came from `effect` even when aliased. Covers the ~60% of the rule catalog that is
   pure-AST detectable (see RULES.md).
-- **Tier 2 (`effect-doctor --deep`, v1.x): orchestrate `@effect/tsgo`** — Effect's pinned
+- **Tier 2 (`agent-doctor --deep`, v1.x): orchestrate `@effect/tsgo`** — Effect's pinned
   typescript-go distribution with `@effect/language-service` (50+ type-aware diagnostics:
   `floatingEffect`, `layerMergeAllWithDependencies`, channel-type rules) compiled in.
   Shell out, parse diagnostics, merge into the report. Never reimplement type-aware
@@ -53,7 +53,7 @@ don't need a server for v1).
 
 ### Product surface (sequenced)
 
-1. `npx effect-doctor` / `effect-doctor [dir]` — scan, animated score, grouped report
+1. `npx agent-doctor` / `agent-doctor [dir]` — scan, animated score, grouped report
    (top 3 rule groups, `--verbose` for all), code frames, `--json` (versioned schema).
 2. Scopes: `--scope full|files|changed|lines` + `--base <ref>` with content-hash
    fingerprint baseline (react-doctor's `compute-diagnostic-delta` model) for CI deltas.
@@ -65,13 +65,13 @@ don't need a server for v1).
 ### Distribution
 
 Biome model: standalone per-platform binaries via npm `optionalDependencies`
-(`@effect-doctor/cli-darwin-arm64`, …) + JS shim bin. No napi until an in-process JS API
+(`@agent-doctor/cli-darwin-arm64`, …) + JS shim bin. No napi until an in-process JS API
 is needed.
 
 ## Layout
 
 - `crates/core` — engine: walker, parse pipeline, rule trait + registry, diagnostics, scoring.
-- `crates/cli` — `effect-doctor` binary: args, report rendering, JSON output.
+- `crates/cli` — `agent-doctor` binary: args, report rendering, JSON output.
 - `references/` (gitignored) — cloned: `effect` (v3 main), `effect-v4` (effect-smol,
   4.0.0-beta.x — the real v4), `skills`, `language-service`, `react-doctor`, `million`.
   react-doctor's `AGENTS.md` is a canonical Effect v4 idiom reference; the

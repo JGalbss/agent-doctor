@@ -1,4 +1,4 @@
-# effect-doctor
+# agent-doctor
 
 Health checks for Effect TS codebases — [react.doctor](https://www.react.doctor/), but for
 [Effect](https://effect.website/). Scans a repo, scores it 0–100, and reports Effect
@@ -6,7 +6,7 @@ anti-patterns with file locations. Written in Rust on the [oxc](https://oxc.rs) 
 ~40ms for 1,100 files, ~200ms for 1,800.
 
 ```
-  effect doctor  v0.1.0
+  agent doctor  v0.1.0
 
   ███████████████████████████░░░  91/100 — Great
 
@@ -19,27 +19,27 @@ anti-patterns with file locations. Written in Rust on the [oxc](https://oxc.rs) 
 
 ```sh
 cargo build --release
-effect-doctor <dir>                      # scan everything
-effect-doctor <dir> --verbose --json     # full report / machine-readable
-effect-doctor --scope changed            # only files changed vs main (PR mode)
-effect-doctor --scope lines --base main  # only issues on lines you touched
-effect-doctor rules                      # list all 101 rules
-effect-doctor explain no-map-returning-effect   # why + how to rewrite it
-effect-doctor rules --json               # full catalog with rewrite recipes
-effect-doctor --deep                     # merge type-aware @effect/language-service findings
-effect-doctor lsp                        # run as a language server (editor diagnostics)
-effect-doctor --adopt --scope lines      # experimental: vanilla-TS → Effect migration
+agent-doctor <dir>                      # scan everything
+agent-doctor <dir> --verbose --json     # full report / machine-readable
+agent-doctor --scope changed            # only files changed vs main (PR mode)
+agent-doctor --scope lines --base main  # only issues on lines you touched
+agent-doctor rules                      # list all 101 rules
+agent-doctor explain no-map-returning-effect   # why + how to rewrite it
+agent-doctor rules --json               # full catalog with rewrite recipes
+agent-doctor --deep                     # merge type-aware @effect/language-service findings
+agent-doctor lsp                        # run as a language server (editor diagnostics)
+agent-doctor --adopt --scope lines      # experimental: vanilla-TS → Effect migration
                                          # recommendations, on exactly your PR's lines
-effect-doctor --agent                    # experimental "agent doctor": flag the non-Effect
+agent-doctor --agent                    # experimental "agent doctor": flag the non-Effect
                                          # slop LLM agents emit (if/else, ternaries, raw loops…)
-effect-doctor --agent-strict             # same, but escalate to errors and exit non-zero (CI gate)
+agent-doctor --agent-strict             # same, but escalate to errors and exit non-zero (CI gate)
 ```
 
 ## Docs site
 
 `site/` is an Astro site rendering the full rule catalog with side-by-side bad→good
 rewrites, search, and category filters. `npm run gen` regenerates its data from
-`effect-doctor rules --json`; `npm run dev` to work on it locally.
+`agent-doctor rules --json`; `npm run dev` to work on it locally.
 
 ## Status
 
@@ -65,7 +65,7 @@ is in [docs/RULES.md](docs/RULES.md); architecture and roadmap in
 - `--deep` tier: merges the ~78 type-aware diagnostics from
   `@effect/language-service` (its headless `diagnostics --format json` CLI) as `ls/*`
   rules — we never reimplement type analysis.
-- `effect-doctor lsp`: stdio language server publishing the syntactic rule set as
+- `agent-doctor lsp`: stdio language server publishing the syntactic rule set as
   editor diagnostics (full-sync; rule id as the diagnostic code).
 - `--adopt` (experimental): flags vanilla TS that should migrate to Effect — async
   functions, `.then()` chains, `new Promise`, `Promise.all`, sequential awaits in loops —

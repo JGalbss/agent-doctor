@@ -3,8 +3,8 @@
 
 mod common;
 
+use agent_doctor_core::Severity;
 use common::{assert_fires_agent, count, lint, lint_agent, lint_agent_strict};
-use effect_doctor_core::Severity;
 
 const PRELUDE: &str = "import { Effect, Match } from \"effect\"\n";
 

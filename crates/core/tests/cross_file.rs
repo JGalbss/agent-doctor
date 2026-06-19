@@ -5,7 +5,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use effect_doctor_core::{scan, Diagnostic, ScanOptions, ScanScope};
+use agent_doctor_core::{scan, Diagnostic, ScanOptions, ScanScope};
 
 /// Write `files` into a fresh temp dir and scan it with `--agent`.
 fn scan_agent(test: &str, files: &[(&str, &str)]) -> Vec<Diagnostic> {

@@ -1,6 +1,6 @@
 //! Browser build of the linter for the docs-site playground.
 
-use effect_doctor_core::{compute_score, lint_source_with};
+use agent_doctor_core::{compute_score, lint_source_with};
 use wasm_bindgen::prelude::*;
 
 /// Lint a source string, returning `{ diagnostics, score }` as JSON.

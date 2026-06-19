@@ -3,6 +3,44 @@
 version = 4
 
 [[package]]
+name = "agent-doctor"
+version = "0.1.0"
+dependencies = [
+ "agent_doctor_core",
+ "anstyle",
+ "clap",
+ "lsp-server",
+ "lsp-types",
+ "serde_json",
+]
+
+[[package]]
+name = "agent_doctor_core"
+version = "0.1.0"
+dependencies = [
+ "ignore",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_parser",
+ "oxc_semantic",
+ "oxc_span",
+ "oxc_syntax",
+ "rayon",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "agent_doctor_wasm"
+version = "0.1.0"
+dependencies = [
+ "agent_doctor_core",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -232,44 +270,6 @@ name = "dragonbox_ecma"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd8e701084c37e7ef62d3f9e453b618130cbc0ef3573847785952a3ac3f746bf"
-
-[[package]]
-name = "effect-doctor"
-version = "0.1.0"
-dependencies = [
- "anstyle",
- "clap",
- "effect_doctor_core",
- "lsp-server",
- "lsp-types",
- "serde_json",
-]
-
-[[package]]
-name = "effect_doctor_core"
-version = "0.1.0"
-dependencies = [
- "ignore",
- "oxc_allocator",
- "oxc_ast",
- "oxc_ast_visit",
- "oxc_parser",
- "oxc_semantic",
- "oxc_span",
- "oxc_syntax",
- "rayon",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "effect_doctor_wasm"
-version = "0.1.0"
-dependencies = [
- "effect_doctor_core",
- "serde_json",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "either"

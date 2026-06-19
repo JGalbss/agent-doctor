@@ -18,7 +18,7 @@ const counts = {
 <html lang="en">
   <head>
     <Meta
-      title="effect doctor — health checks for Effect TS codebases"
+      title="agent doctor — health checks for Effect TS codebases"
       description={`${rules.length} rules that catch Effect TS anti-patterns — with the cleaner rewrite for every one. Rust-fast: thousands of files in milliseconds.`}
     />
   </head>
@@ -34,7 +34,7 @@ const counts = {
           Scan your Effect TS codebase, get a score, fix what matters. {rules.length} rules,
           every one with the cleaner rewrite. Rust-fast — thousands of files in milliseconds.
         </p>
-        <pre class="install">npx effect-doctor <span class="dim"># or: effect-doctor --scope lines  (just your PR)</span><button class="copy" id="copy-install" title="Copy npx effect-doctor" aria-label="Copy">⧉</button></pre>
+        <pre class="install">npx agent-doctor <span class="dim"># or: agent-doctor --scope lines  (just your PR)</span><button class="copy" id="copy-install" title="Copy npx agent-doctor" aria-label="Copy">⧉</button></pre>
         <p class="playground-link"><a href="/playground">▶ try it in the playground</a></p>
         <div class="legend">
           <span class="sev error">{counts.error} errors</span>
@@ -88,8 +88,8 @@ const counts = {
 
       <footer>
         <p>
-          <a href="https://github.com/JGalbss/effect-doctor">github.com/JGalbss/effect-doctor</a>
-          · run <code>effect-doctor explain &lt;rule&gt;</code> in your terminal for any recipe
+          <a href="https://github.com/JGalbss/agent-doctor">github.com/JGalbss/agent-doctor</a>
+          · run <code>agent-doctor explain &lt;rule&gt;</code> in your terminal for any recipe
         </p>
       </footer>
     </main>
@@ -117,7 +117,7 @@ const counts = {
 
       const copyButton = document.getElementById("copy-install")
       copyButton.addEventListener("click", async () => {
-        await navigator.clipboard.writeText("npx effect-doctor")
+        await navigator.clipboard.writeText("npx agent-doctor")
         copyButton.textContent = "✓"
         copyButton.classList.add("copied")
         setTimeout(() => {

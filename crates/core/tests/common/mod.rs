@@ -2,9 +2,7 @@
 // different subset of helpers.
 #![allow(dead_code)]
 
-use effect_doctor_core::{
-    lint_source, lint_source_opts, lint_source_with, Diagnostic, LintOptions,
-};
+use agent_doctor_core::{lint_source, lint_source_opts, lint_source_with, Diagnostic, LintOptions};
 
 pub fn lint(source: &str) -> Vec<Diagnostic> {
     lint_source("src/example.ts", source, false)

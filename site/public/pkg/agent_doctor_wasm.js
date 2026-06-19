@@ -1,4 +1,4 @@
-/* @ts-self-types="./effect_doctor_wasm.d.ts" */
+/* @ts-self-types="./agent_doctor_wasm.d.ts" */
 
 /**
  * Lint a source string, returning `{ diagnostics, score }` as JSON.
@@ -31,7 +31,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./effect_doctor_wasm_bg.js": import0,
+        "./agent_doctor_wasm_bg.js": import0,
     };
 }
 
@@ -199,7 +199,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('effect_doctor_wasm_bg.wasm', import.meta.url);
+        module_or_path = new URL('agent_doctor_wasm_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

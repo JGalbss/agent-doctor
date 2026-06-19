@@ -1,12 +1,12 @@
-//! `effect-doctor lsp` — a stdio language server publishing the syntactic
+//! `agent-doctor lsp` — a stdio language server publishing the syntactic
 //! rule set as editor diagnostics on open/change. Diagnostic messages carry
-//! the rule's help text; the code field is the rule id (`effect-doctor explain
+//! the rule's help text; the code field is the rule id (`agent-doctor explain
 //! <id>` for the rewrite recipe).
 
 use std::error::Error;
 use std::path::PathBuf;
 
-use effect_doctor_core::{detect_effect_major, lint_source, Severity};
+use agent_doctor_core::{detect_effect_major, lint_source, Severity};
 use lsp_server::{Connection, Message, Notification as ServerNotification};
 use lsp_types::notification::{
     DidChangeTextDocument, DidOpenTextDocument, Notification, PublishDiagnostics,
@@ -41,7 +41,7 @@ fn to_lsp_diagnostics(path: &str, text: &str, v4_active: bool) -> Vec<Diagnostic
                 },
                 severity: Some(map_severity(finding.severity)),
                 code: Some(NumberOrString::String(finding.rule.to_string())),
-                source: Some("effect-doctor".to_string()),
+                source: Some("agent-doctor".to_string()),
                 message: format!("{}\n\n{}", finding.message, finding.help),
                 ..Diagnostic::default()
             }

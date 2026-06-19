@@ -32,8 +32,8 @@ export async function syncUsers(ids: string[]) {
 <html lang="en">
   <head>
     <Meta
-      title="playground — effect doctor"
-      description="Run the real effect-doctor linter in your browser (WebAssembly). Paste Effect TS code, get the score and the cleaner rewrites live."
+      title="playground — agent doctor"
+      description="Run the real agent-doctor linter in your browser (WebAssembly). Paste Effect TS code, get the score and the cleaner rewrites live."
     />
   </head>
   <body>
@@ -59,7 +59,7 @@ export async function syncUsers(ids: string[]) {
       </div>
 
       <footer>
-        <p><a href="/">← all 89 rules</a> · <a href="https://github.com/JGalbss/effect-doctor">github</a> · <span class="muted">autosaves locally · ⌘S formats</span></p>
+        <p><a href="/">← all 101 rules</a> · <a href="https://github.com/JGalbss/agent-doctor">github</a> · <span class="muted">autosaves locally · ⌘S formats</span></p>
       </footer>
     </main>
 
@@ -79,7 +79,7 @@ export async function syncUsers(ids: string[]) {
       const v4 = document.getElementById("v4")
       const adopt = document.getElementById("adopt")
 
-      const STORAGE_KEY = "effect-doctor-playground"
+      const STORAGE_KEY = "agent-doctor-playground"
       const sample = JSON.parse(document.getElementById("sample-code").textContent)
       const fromHash = () => {
         if (location.hash.length < 2) return null
@@ -194,7 +194,7 @@ export async function syncUsers(ids: string[]) {
       v4.addEventListener("change", render)
       adopt.addEventListener("change", render)
 
-      const wasmModuleUrl = `${location.origin}/pkg/effect_doctor_wasm.js`
+      const wasmModuleUrl = `${location.origin}/pkg/agent_doctor_wasm.js`
       const wasm = await import(/* @vite-ignore */ wasmModuleUrl)
       await wasm.default()
       lintFn = wasm.lint

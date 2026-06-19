@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use effect_doctor_core::{all_metas, example_for};
+use agent_doctor_core::{all_metas, example_for};
 
 #[test]
 fn every_rule_has_a_rewrite_example() {

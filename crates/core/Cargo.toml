@@ -1,5 +1,5 @@
 [package]
-name = "effect_doctor_core"
+name = "agent_doctor_core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
