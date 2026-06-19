@@ -149,6 +149,13 @@ static TS_ENUM: RuleMeta = RuleMeta {
     help: "TS `enum` emits runtime code and has surprising semantics. Use a union of string literals (or `Schema.Literals(...)`) and derive the type — it's erasable and decodes cleanly.",
 };
 
+static INLINE_TYPE_IMPORT: RuleMeta = RuleMeta {
+    id: "agent-no-inline-type-import",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "Inline `import(\"...\").Foo` type references are hard to read and move. Use a top-level `import type { Foo } from \"...\"` — it's erased at compile time, so it can't cause circular-dependency issues. (rogo)",
+};
+
 static SAFE_PARSE: RuleMeta = RuleMeta {
     id: "agent-prefer-safe-parse",
     severity: Severity::Warn,
@@ -285,9 +292,21 @@ impl Rule for AgentHygiene {
             &NON_NULL_ASSERTION,
             &TS_ENUM,
             &SAFE_PARSE,
+            &INLINE_TYPE_IMPORT,
             &DUPLICATE_FUNCTION,
         ];
         METAS
+    }
+
+    fn on_ts_import_type(&self, span: Span, ctx: &mut FileCtx) {
+        if !ctx.agent_active() {
+            return;
+        }
+        ctx.report_agent(
+            &INLINE_TYPE_IMPORT,
+            span,
+            "inline `import(\"...\").Foo` type — use a top-level `import type`".to_string(),
+        );
     }
 
     fn on_ts_non_null(&self, span: Span, ctx: &mut FileCtx) {

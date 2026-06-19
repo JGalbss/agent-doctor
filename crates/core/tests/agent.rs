@@ -268,3 +268,9 @@ fn flags_schema_parse_but_not_json_parse() {
     let json = src("export const u = JSON.parse(raw)\n");
     assert_fires_agent(&json, "agent-prefer-safe-parse", 0);
 }
+
+#[test]
+fn flags_inline_type_import() {
+    let source = src("export const save = (u: import(\"./users\").User) => store(u)\n");
+    assert_fires_agent(&source, "agent-no-inline-type-import", 1);
+}

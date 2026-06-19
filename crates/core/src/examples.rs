@@ -472,6 +472,10 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "const user = UserSchema.parse(raw) // throws far from here",
             "const result = UserSchema.safeParse(raw)\nif (!result.success) return badRequest(result.error)\nconst user = result.data",
         ),
+        "agent-no-inline-type-import" => (
+            "function save(user: import(\"src/users/users.interface\").User) {}",
+            "import type { User } from \"src/users/users.interface\"\nfunction save(user: User) {}",
+        ),
         _ => return None,
     };
     Some(RuleExample { bad, good })

@@ -68,6 +68,8 @@ from: **[oc]** = opencode `AGENTS.md`, **[rogo]** = the Rogo TS conventions,
 - **No inline `import()` / `require()`** mid-body; hoist to a static top-level
   `import` (dynamic import only for deliberate code-splitting). —
   `agent-no-inline-import` [rogo]
+- **No inline `import("...").Foo` type refs.** Use a top-level `import type`. —
+  `agent-no-inline-type-import` [rogo]
 
 ## Error handling
 
@@ -98,5 +100,5 @@ from: **[oc]** = opencode `AGENTS.md`, **[rogo]** = the Rogo TS conventions,
 These were mined but are too intent-dependent to enforce as AST rules without
 noise — follow them, but they aren't checked: explicit return types on exports
 (fights Effect inference), "avoid unnecessary destructuring", "happy-path
-structure", barrel-import avoidance, snake_case DB columns, `.safeParse()` over
-`.parse()`. See `docs/RULES.md` for the full catalog.
+structure", barrel-import avoidance, snake_case DB columns. See `docs/RULES.md`
+for the full catalog.

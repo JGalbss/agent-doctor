@@ -856,6 +856,14 @@
     "severity": "warn"
   },
   {
+    "bad": "function save(user: import(\"src/users/users.interface\").User) {}",
+    "category": "Agent hygiene",
+    "good": "import type { User } from \"src/users/users.interface\"\nfunction save(user: User) {}",
+    "help": "Inline `import(\"...\").Foo` type references are hard to read and move. Use a top-level `import type { Foo } from \"...\"` — it's erased at compile time, so it can't cause circular-dependency issues. (rogo)",
+    "id": "agent-no-inline-type-import",
+    "severity": "warn"
+  },
+  {
     "bad": "const usageBarFill = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageText = (p) => p >= 100 ? red : p >= 80 ? amber : gray // copy-paste",
     "category": "Agent hygiene",
     "good": "const usageTone = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageBarFill = usageTone\nconst usageText = usageTone",

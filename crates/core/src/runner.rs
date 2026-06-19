@@ -8,7 +8,9 @@ use oxc_ast::ast::{
     TSAsExpression, TaggedTemplateExpression, ThrowStatement, TryStatement, VariableDeclaration,
     WhileStatement, YieldExpression,
 };
-use oxc_ast::ast::{ExportDefaultDeclaration, TSEnumDeclaration, TSNonNullExpression};
+use oxc_ast::ast::{
+    ExportDefaultDeclaration, TSEnumDeclaration, TSImportType, TSNonNullExpression,
+};
 use oxc_ast_visit::{walk, Visit};
 use oxc_syntax::scope::ScopeFlags;
 
@@ -261,6 +263,13 @@ impl<'a> Visit<'a> for Runner {
             rule.on_ts_enum(enum_decl.span, &mut self.ctx);
         }
         walk::walk_ts_enum_declaration(self, enum_decl);
+    }
+
+    fn visit_ts_import_type(&mut self, import_type: &TSImportType<'a>) {
+        for rule in self.rules() {
+            rule.on_ts_import_type(import_type.span, &mut self.ctx);
+        }
+        walk::walk_ts_import_type(self, import_type);
     }
 
     fn visit_tagged_template_expression(&mut self, template: &TaggedTemplateExpression<'a>) {

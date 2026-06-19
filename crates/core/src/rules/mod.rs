@@ -199,6 +199,8 @@ pub trait Rule: Sync {
     fn on_ts_non_null(&self, _span: Span, _ctx: &mut FileCtx) {}
     /// A `TSEnumDeclaration` (`enum X {}`).
     fn on_ts_enum(&self, _span: Span, _ctx: &mut FileCtx) {}
+    /// A `TSImportType` (`import("...").Foo` used as a type).
+    fn on_ts_import_type(&self, _span: Span, _ctx: &mut FileCtx) {}
     fn on_file_end(&self, _ctx: &mut FileCtx) {}
 }
 
