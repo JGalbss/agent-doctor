@@ -1,0 +1,154 @@
+---
+import Meta from "../components/Meta.astro"
+
+const layers = [
+  { tag: "kernel", title: "Semantic kernel", body: "Content-addressed index of every TypeScript file — symbol graph, dependency edges, structural fingerprints. Warm and incremental: re-parse one file in ~25µs." },
+  { tag: "L1", title: "Policy / gate", body: "ACL, architecture layering, protected paths, and region leases. A diff that breaks the rules is denied deterministically — exit non-zero. Same gate for humans, agents, and CI." },
+  { tag: "L2", title: "Impact test selection", body: "Which tests transitively reach a change, from the import graph. Turns “run 3000 tests” into “run the 12 that matter” — sub-µs once warm." },
+  { tag: "L3", title: "Semantic merge", body: "AST-level 3-way merge. Two agents adding different functions to the same file merge with zero conflict; only edits to the same declaration conflict. Drops in as a git merge driver." },
+  { tag: "L4", title: "Context server", body: "A warm kernel answering queries over stdio — plain JSON or MCP. The agent pulls ground truth (does this helper exist? what tests cover this?) instead of grepping." },
+  { tag: "L5", title: "Orchestrator", body: "The deterministic runner: lease → assemble context → run the agent → gate → retry with the exact findings. The agent is the only nondeterministic step; everything around it is enforced." },
+  { tag: "L6", title: "Agent-native VCS", body: "A content-addressed operation log with per-agent/per-task attribution and deterministic undo, first-class leases, and semantic merge — our model on a git-compatible backend." },
+]
+
+const commands = [
+  ["agent-doctor init", "scaffold policy, gitignore, MCP config, and the merge driver"],
+  ["agent-doctor gate --base main --actor me", "deny a diff that breaks policy/ACL/leases"],
+  ["agent-doctor impact --base main", "the tests reaching your diff"],
+  ["agent-doctor merge O A B", "semantic 3-way merge (git driver)"],
+  ["agent-doctor serve --mcp", "context server for your agent harness"],
+  ["agent-doctor orchestrate --executor '…'", "run a task ledger through the loop"],
+]
+
+const latency = [
+  ["zod (404 files)", "7.8ms", "25µs", "0.2µs", "4µs", "19µs"],
+  ["zustand (33 files)", "2.5ms", "46µs", "0.2µs", "53µs", "21µs"],
+]
+---
+
+<html lang="en">
+  <head>
+    <Meta
+      title="agent doctor — the agent toolkit"
+      description="A deterministic layer around AI coding agents: policy gates, impact test-selection, semantic merge, a context server, an orchestrator, and an agent-native VCS — built on the same Rust/oxc kernel."
+    />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1><span class="accent">agent</span> doctor <span class="sub">/ toolkit</span></h1>
+        <p class="tagline">
+          The deterministic shell around AI coding agents. Agents are nondeterministic; the
+          value is a layer that grounds and verifies them. Build <b>leverage</b> — ground truth,
+          coordination, determinism — not <b>judgment</b> a smarter model already does well.
+        </p>
+        <p class="links">
+          <a href="https://github.com/JGalbss/agent-doctor/blob/main/docs/TOOLKIT.md">design ↗</a>
+          <a href="https://github.com/JGalbss/agent-doctor/blob/main/docs/PLAN.md">build plan ↗</a>
+          <a href="/">← rule catalog</a>
+        </p>
+      </header>
+
+      <section class="layers">
+        {layers.map((layer) => (
+          <article class="layer">
+            <span class="tag">{layer.tag}</span>
+            <h3>{layer.title}</h3>
+            <p>{layer.body}</p>
+          </article>
+        ))}
+      </section>
+
+      <section class="block">
+        <h2>The loop</h2>
+        <pre class="loop">{`orchestrator: decompose → lease disjoint regions
+  └─ per task (parallel):
+       assemble minimal context (kernel queries)
+       run the agent            ← the only nondeterministic step
+       gate the diff            → deny? retry with the exact findings
+       run impacted tests       → fail? retry with the failures
+       semantic-merge back      → conflict? only the real one surfaces
+       release lease`}</pre>
+        <p class="note">A hallucinating agent can't corrupt the repo — every mutation flows
+          through the deterministic gate / test / merge it cannot bypass.</p>
+      </section>
+
+      <section class="block">
+        <h2>Commands</h2>
+        <div class="cmds">
+          {commands.map(([cmd, desc]) => (
+            <div class="cmd"><code>{cmd}</code><span>{desc}</span></div>
+          ))}
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Latency <span class="sub">— release, Apple Silicon</span></h2>
+        <table>
+          <thead><tr><th>project</th><th>build</th><th>incremental</th><th>impact</th><th>gate</th><th>merge</th></tr></thead>
+          <tbody>
+            {latency.map((row) => (
+              <tr>{row.map((cell, i) => (i === 0 ? <td class="proj">{cell}</td> : <td>{cell}</td>))}</tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="note">The harness drove out two real regressions, both fixed: impact
+          1300→0.2µs, gate 1193→4µs. CI gates cold-build µs/file.</p>
+      </section>
+
+      <footer>
+        <p>One Rust/oxc kernel; every layer is a pure, cacheable function of it. TypeScript-first.</p>
+      </footer>
+    </main>
+
+    <style>
+      :root {
+        --bg: #0a0d13; --panel: #0f131c; --border: #1c2330;
+        --grid: rgba(126, 226, 168, 0.035);
+        --text: #d6dbe7; --muted: #7d8799; --accent: #7ee2a8;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg);
+        background-image:
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        background-size: 40px 40px;
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        line-height: 1.55;
+      }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+      main { max-width: 860px; margin: 0 auto; padding: 48px 20px 80px; }
+      header { text-align: center; margin-bottom: 40px; }
+      h1 { font-size: 40px; margin: 0 0 12px; font-weight: 700; }
+      .accent { color: var(--accent); }
+      .sub { color: var(--muted); font-weight: 400; font-size: 0.6em; }
+      .tagline { color: var(--muted); max-width: 600px; margin: 0 auto 16px; }
+      .tagline b { color: var(--text); }
+      .links { display: flex; gap: 18px; justify-content: center; font-size: 14px; }
+      h2 { font-size: 20px; margin: 36px 0 14px; }
+      .layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+      .layer { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+      .layer h3 { margin: 8px 0 6px; font-size: 16px; }
+      .layer p { margin: 0; color: var(--muted); font-size: 14px; }
+      .tag { font-size: 11px; color: var(--accent); border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; font-family: ui-monospace, monospace; }
+      .block { margin-top: 8px; }
+      pre.loop { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; overflow-x: auto; font-size: 13px; color: var(--text); }
+      .note { color: var(--muted); font-size: 13px; }
+      .cmds { display: grid; gap: 8px; }
+      .cmd { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+      .cmd code { color: var(--accent); font-size: 13px; }
+      .cmd span { color: var(--muted); font-size: 13px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+      th:first-child, td.proj { text-align: left; }
+      th { color: var(--muted); font-weight: 500; }
+      td { font-family: ui-monospace, monospace; }
+      td.proj { font-family: ui-sans-serif, system-ui, sans-serif; }
+      footer { margin-top: 48px; text-align: center; color: var(--muted); font-size: 13px; }
+    </style>
+  </body>
+</html>
