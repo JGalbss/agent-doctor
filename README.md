@@ -47,15 +47,22 @@ agent-doctor gate --base main --actor a  # gate the diff vs policy/ACL/leases (d
 agent-doctor merge BASE OURS THEIRS      # semantic (AST) 3-way merge of TypeScript
 ```
 
-### Set up in your repo (one command)
+### Set up in your repo (interactive walkthrough)
 
 ```sh
-agent-doctor init   # scaffolds policy + gitignore + MCP config, registers the merge driver
+agent-doctor init          # prompts in a terminal (shadcn-style)
+agent-doctor init --yes    # accept all recommended options (CI / scripted)
 ```
 
-`init` writes `agent-doctor.policy.toml`, `.agent-doctor/.gitignore` (local state stays
+`init` always writes `agent-doctor.policy.toml`, `.agent-doctor/.gitignore` (local state stays
 uncommitted), `.mcp.json` (so an MCP-aware harness loads the kernel's tools), and registers the
-semantic merge driver in git config + `.gitattributes`. Idempotent; `--force` to overwrite.
+semantic merge driver in git config + `.gitattributes`. In a terminal it then **prompts** to:
+
+- install the **Claude Code skill** at `.claude/skills/agent-doctor/SKILL.md` (teaches an
+  agent to use `verify`/`impact`/`gate`/`merge` in this repo) — or pass `--skills`,
+- install the **pre-push hook** (`verify` on `gt submit` / `git push`) — or pass `--hooks`.
+
+Idempotent; `--force` overwrites existing files.
 
 ### Run locally
 

@@ -181,15 +181,21 @@ enum Command {
         #[arg(long)]
         mcp: bool,
     },
-    /// Scaffold the toolkit in this repo: policy, gitignore, merge driver, MCP config
+    /// Scaffold the toolkit in this repo (interactive walkthrough in a terminal):
+    /// policy, gitignore, merge driver, MCP config, Claude Code skill, git hook
     Init {
         /// Overwrite existing files instead of leaving them untouched
         #[arg(long)]
         force: bool,
-        /// Also install a git pre-push hook that runs `agent-doctor verify`
-        /// (fires on `gt submit` / `git push`)
+        /// Install the git pre-push hook (verify on `gt submit` / `git push`)
         #[arg(long)]
         hooks: bool,
+        /// Install the Claude Code skill into .claude/skills
+        #[arg(long)]
+        skills: bool,
+        /// Accept all recommended options without prompting (CI / scripted)
+        #[arg(long)]
+        yes: bool,
     },
     /// Run a task ledger through the deterministic loop with a pluggable agent
     Orchestrate {
@@ -671,19 +677,36 @@ const MCP_CONFIG: &str = r#"{
 
 const STATE_GITIGNORE: &str = "# agent-doctor local state — do not commit\n*\n!.gitignore\n";
 
-/// `agent-doctor init` — scaffold the toolkit in a repo. Idempotent: existing
-/// files are left untouched unless `--force`.
-fn run_init(root: &std::path::Path, force: bool, hooks: bool) -> ExitCode {
+/// The Claude Code skill, embedded from the canonical source so there is exactly
+/// one copy to maintain.
+const SKILL: &str = include_str!("../../../skills/agent-doctor/SKILL.md");
+
+/// `agent-doctor init` — scaffold the toolkit. In a terminal it's an interactive
+/// walkthrough; with `--yes` or in a non-TTY it uses flags/defaults. Idempotent:
+/// existing files are left untouched unless `--force`.
+fn run_init(root: &std::path::Path, force: bool, hooks: bool, skills: bool, yes: bool) -> ExitCode {
     let p = palette();
     println!();
     println!("  {}agent-doctor init{}", p.bold, p.reset);
     println!();
 
+    // Always-on core scaffold.
     write_scaffold(root, "agent-doctor.policy.toml", STARTER_POLICY, force, p);
     write_scaffold(root, ".agent-doctor/.gitignore", STATE_GITIGNORE, force, p);
     write_scaffold(root, ".mcp.json", MCP_CONFIG, force, p);
     ensure_merge_driver(root, p);
-    if hooks {
+
+    // Optional pieces: explicit flags win; otherwise prompt in a terminal; else off.
+    let interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal() && !yes;
+    let want_skills =
+        skills || yes || (interactive && prompt_yes(p, "Install the Claude Code skill into .claude/skills?", true));
+    let want_hooks =
+        hooks || yes || (interactive && prompt_yes(p, "Install the pre-push hook (verify on submit)?", true));
+
+    if want_skills {
+        write_scaffold(root, ".claude/skills/agent-doctor/SKILL.md", SKILL, force, p);
+    }
+    if want_hooks {
         install_pre_push_hook(root, force, p);
     }
 
@@ -696,6 +719,23 @@ fn run_init(root: &std::path::Path, force: bool, hooks: bool) -> ExitCode {
     println!("    • restart your agent harness to load the MCP server (.mcp.json)");
     println!();
     ExitCode::SUCCESS
+}
+
+/// Prompt for a yes/no answer with a default (used by the interactive walkthrough).
+fn prompt_yes(p: &Palette, question: &str, default_yes: bool) -> bool {
+    use std::io::Write;
+    let hint = if default_yes { "[Y/n]" } else { "[y/N]" };
+    print!("  {}{question}{} {hint} ", p.bold, p.reset);
+    let _ = std::io::stdout().flush();
+    let mut line = String::new();
+    if std::io::stdin().read_line(&mut line).is_err() {
+        return default_yes;
+    }
+    match line.trim().to_ascii_lowercase().as_str() {
+        "" => default_yes,
+        "y" | "yes" => true,
+        _ => false,
+    }
 }
 
 /// Install a git pre-push hook that runs `agent-doctor verify` — so a Graphite
@@ -956,7 +996,12 @@ fn main() -> ExitCode {
             leases,
             mcp,
         }) => return run_serve(&cli.path, policy, leases, *mcp),
-        Some(Command::Init { force, hooks }) => return run_init(&cli.path, *force, *hooks),
+        Some(Command::Init {
+            force,
+            hooks,
+            skills,
+            yes,
+        }) => return run_init(&cli.path, *force, *hooks, *skills, *yes),
         Some(Command::Orchestrate {
             ledger,
             actor,

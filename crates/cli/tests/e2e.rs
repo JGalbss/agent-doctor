@@ -307,6 +307,24 @@ fn gate_enforces_leases_per_actor() {
 }
 
 #[test]
+fn init_installs_skill_and_hook_with_flags() {
+    let dir = temp_dir("skills");
+    init_repo(&dir);
+    let out = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["init", "--skills", "--hooks"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let skill = dir.join(".claude/skills/agent-doctor/SKILL.md");
+    assert!(skill.exists(), "skill file installed");
+    let body = std::fs::read_to_string(&skill).unwrap();
+    assert!(body.contains("name: agent-doctor"), "skill has frontmatter");
+    assert!(dir.join(".git/hooks/pre-push").exists(), "pre-push hook installed");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn verify_passes_clean_and_blocks_on_policy() {
     let dir = temp_dir("verify");
     init_repo(&dir);
