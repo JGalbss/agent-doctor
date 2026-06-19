@@ -10,15 +10,16 @@
 use std::collections::HashMap;
 
 use oxc_ast::ast::{
-    ArrowFunctionExpression, AssignmentExpression, AssignmentTarget, BinaryExpression,
+    Argument, ArrowFunctionExpression, AssignmentExpression, AssignmentTarget, BinaryExpression,
     CallExpression, ConditionalExpression, Expression, Function, FunctionBody, IfStatement,
-    ImportExpression, Statement, VariableDeclaration, VariableDeclarationKind,
+    ImportDeclaration, ImportDeclarationSpecifier, ImportExpression, ModuleExportName, Statement,
+    TSAsExpression, TSType, TSTypeName, TryStatement, VariableDeclaration, VariableDeclarationKind,
 };
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
 
 use crate::diagnostics::{Category, RuleMeta, Severity};
-use crate::matchers::{ident_name, unwrap_parens};
+use crate::matchers::{ident_name, static_member, unwrap_parens};
 use crate::rules::{FileCtx, Rule};
 use crate::structural;
 
@@ -77,6 +78,86 @@ static INLINE_IMPORT: RuleMeta = RuleMeta {
     category: Category::AgentHygiene,
     help: "Inline `await import(...)` / `require(...)` hides a module's dependencies mid-body — agents add them to dodge a missing top-level import. Hoist to a static top-level `import` (keep dynamic import only for deliberate code-splitting).",
 };
+
+static ANY_TYPE: RuleMeta = RuleMeta {
+    id: "agent-no-any",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "`any` opts out of type checking and silently spreads. Use a precise type, `unknown` + narrowing, or a Schema decode at the boundary. (opencode: \"avoid using the any type\".)",
+};
+
+static IMPORT_ALIAS: RuleMeta = RuleMeta {
+    id: "agent-no-import-alias",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "Aliasing an import (`import { x as y }`) hides the real name and breaks grep-ability. Import under the original name. (opencode: \"never alias imports\"; effect imports are exempt.)",
+};
+
+static NAMESPACE_IMPORT: RuleMeta = RuleMeta {
+    id: "agent-no-namespace-import",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "Star imports (`import * as x`) pull in the whole module and obscure what's used. Import the named bindings you need. (opencode: \"never use star imports\"; effect's `import * as Effect` idiom is exempt.)",
+};
+
+static TRY_CATCH: RuleMeta = RuleMeta {
+    id: "agent-no-try-catch",
+    severity: Severity::Info,
+    category: Category::AgentHygiene,
+    help: "Avoid try/catch where possible — it produces untyped errors and tangled control flow. Model failures in the typed channel (Effect.try/tryPromise + catchTag) or return a Result. (opencode: \"avoid try/catch where possible\".)",
+};
+
+static DEFAULT_EXPORT: RuleMeta = RuleMeta {
+    id: "agent-no-default-export",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "Default exports rename freely at each import site and resist refactors/auto-import. Use a named export.",
+};
+
+static AS_CAST: RuleMeta = RuleMeta {
+    id: "agent-no-as-cast",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "An `as` cast asserts a type the compiler can't verify, silently hiding mismatches. Narrow with a type guard, or decode with Schema at the boundary instead of casting. (`as const` is fine.)",
+};
+
+static UNBOUNDED_PROMISE_ALL: RuleMeta = RuleMeta {
+    id: "agent-no-unbounded-promise-all",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "`Promise.all(array.map(...))` fans out the whole list at once — it can exhaust the DB pool, trip rate limits, or cascade one slow dependency. Cap it with p-limit, or use Effect.forEach with an explicit `concurrency`.",
+};
+
+fn is_const_assertion(ty: &TSType) -> bool {
+    matches!(
+        ty,
+        TSType::TSTypeReference(reference)
+            if matches!(&reference.type_name, TSTypeName::IdentifierReference(id) if id.name == "const")
+    )
+}
+
+/// `<array>.map(...)` — the unbounded fan-out source for `Promise.all`.
+fn is_map_call(expr: &Expression) -> bool {
+    matches!(
+        unwrap_parens(expr),
+        Expression::CallExpression(call) if matches!(static_member(&call.callee), Some((_, "map")))
+    )
+}
+
+/// `effect`, `effect/...`, `@effect/...` — the namespace/alias import rules
+/// exempt these so Effect's idiomatic `import * as Effect from "effect"` and
+/// occasional aliases aren't punished.
+fn is_effect_module(specifier: &str) -> bool {
+    specifier == "effect" || specifier.starts_with("effect/") || specifier.starts_with("@effect/")
+}
+
+fn export_name<'a>(name: &'a ModuleExportName) -> &'a str {
+    match name {
+        ModuleExportName::IdentifierName(id) => id.name.as_str(),
+        ModuleExportName::IdentifierReference(id) => id.name.as_str(),
+        ModuleExportName::StringLiteral(s) => s.value.as_str(),
+    }
+}
 
 fn is_equality(operator: BinaryOperator) -> bool {
     matches!(
@@ -145,9 +226,98 @@ impl Rule for AgentHygiene {
             &LET_BINDING,
             &MUTATION,
             &INLINE_IMPORT,
+            &ANY_TYPE,
+            &IMPORT_ALIAS,
+            &NAMESPACE_IMPORT,
+            &TRY_CATCH,
+            &DEFAULT_EXPORT,
+            &AS_CAST,
+            &UNBOUNDED_PROMISE_ALL,
             &DUPLICATE_FUNCTION,
         ];
         METAS
+    }
+
+    fn on_export_default(&self, span: Span, ctx: &mut FileCtx) {
+        if !ctx.agent_active() {
+            return;
+        }
+        ctx.report_agent(
+            &DEFAULT_EXPORT,
+            keyword_span(span, 6),
+            "default export — use a named export".to_string(),
+        );
+    }
+
+    fn on_ts_as_expression(&self, as_expr: &TSAsExpression<'_>, ctx: &mut FileCtx) {
+        if !ctx.agent_active() || is_const_assertion(&as_expr.type_annotation) {
+            return;
+        }
+        ctx.report_agent(
+            &AS_CAST,
+            as_expr.span,
+            "`as` cast — narrow with a type guard or decode with Schema instead".to_string(),
+        );
+    }
+
+    fn on_ts_any(&self, span: Span, ctx: &mut FileCtx) {
+        if !ctx.agent_active() {
+            return;
+        }
+        ctx.report_agent(
+            &ANY_TYPE,
+            span,
+            "`any` — use a precise type, `unknown` + narrowing, or a Schema decode".to_string(),
+        );
+    }
+
+    fn on_import(&self, import: &ImportDeclaration<'_>, ctx: &mut FileCtx) {
+        if !ctx.agent_active() || is_effect_module(import.source.value.as_str()) {
+            return;
+        }
+        let Some(specifiers) = import.specifiers.as_ref() else {
+            return;
+        };
+        for specifier in specifiers {
+            match specifier {
+                ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace) => {
+                    ctx.report_agent(
+                        &NAMESPACE_IMPORT,
+                        namespace.span,
+                        format!(
+                            "`import * as {}` — import the named bindings you use",
+                            namespace.local.name
+                        ),
+                    );
+                }
+                ImportDeclarationSpecifier::ImportSpecifier(named) => {
+                    let imported = export_name(&named.imported);
+                    if imported != named.local.name.as_str() {
+                        ctx.report_agent(
+                            &IMPORT_ALIAS,
+                            named.span,
+                            format!(
+                                "`{} as {}` — import under its real name",
+                                imported, named.local.name
+                            ),
+                        );
+                    }
+                }
+                ImportDeclarationSpecifier::ImportDefaultSpecifier(_) => {}
+            }
+        }
+    }
+
+    fn on_try(&self, try_stmt: &TryStatement<'_>, ctx: &mut FileCtx) {
+        // Inside an Effect generator, `no-try-catch-in-gen` (error) owns this.
+        if !ctx.agent_active() || ctx.in_effect_gen() {
+            return;
+        }
+        ctx.report_agent(
+            &TRY_CATCH,
+            keyword_span(try_stmt.span, 3),
+            "try/catch — model failure in the typed channel (Effect.try + catchTag) or return a Result".to_string(),
+        );
     }
 
     fn on_if(&self, if_stmt: &IfStatement<'_>, ctx: &mut FileCtx) {
@@ -268,14 +438,36 @@ impl Rule for AgentHygiene {
     }
 
     fn on_call(&self, call: &CallExpression<'_>, ctx: &mut FileCtx) {
-        if !ctx.agent_active() || ident_name(&call.callee) != Some("require") {
+        if !ctx.agent_active() {
             return;
         }
-        ctx.report_agent(
-            &INLINE_IMPORT,
-            call.span,
-            "require(...) — use a static top-level ESM `import` instead".to_string(),
-        );
+        if ident_name(&call.callee) == Some("require") {
+            ctx.report_agent(
+                &INLINE_IMPORT,
+                call.span,
+                "require(...) — use a static top-level ESM `import` instead".to_string(),
+            );
+            return;
+        }
+        // `Promise.all(arr.map(...))` / `Promise.allSettled(arr.map(...))` —
+        // unbounded fan-out over a list whose size isn't fixed.
+        let promise_combinator = static_member(&call.callee).filter(|(object, prop)| {
+            ident_name(object) == Some("Promise") && matches!(*prop, "all" | "allSettled")
+        });
+        if let Some((_, prop)) = promise_combinator {
+            let maps = call
+                .arguments
+                .first()
+                .and_then(Argument::as_expression)
+                .is_some_and(is_map_call);
+            if maps {
+                ctx.report_agent(
+                    &UNBOUNDED_PROMISE_ALL,
+                    call.span,
+                    format!("Promise.{prop}(arr.map(...)) — cap with p-limit or Effect.forEach {{ concurrency }}"),
+                );
+            }
+        }
     }
 
     fn on_function(&self, function: &Function<'_>, ctx: &mut FileCtx) {

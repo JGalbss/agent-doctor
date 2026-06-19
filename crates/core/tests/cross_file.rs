@@ -93,3 +93,30 @@ fn same_file_duplicates_are_not_cross_file() {
     assert_eq!(count(&diagnostics, "agent-duplicate-cross-file"), 0);
     assert!(count(&diagnostics, "agent-duplicate-function") >= 1);
 }
+
+#[test]
+fn flags_exported_helper_imported_by_one_module() {
+    // formatOne: exported, imported by exactly one module (b.ts) → single-use.
+    // shared: imported by two modules → not flagged.
+    let a = "export const formatOne = (n: number) => `${n} cr`\n";
+    let b = "import { formatOne } from \"./a\"\nexport const show = (n: number) => formatOne(n)\n";
+    let shared = "export const shared = (n: number) => n + 1\n";
+    let c = "import { shared } from \"./shared\"\nexport const c = shared(1)\n";
+    let d = "import { shared } from \"./shared\"\nexport const d = shared(2)\n";
+    let diagnostics = scan_agent(
+        "singleuse",
+        &[
+            ("a.ts", a),
+            ("b.ts", b),
+            ("shared.ts", shared),
+            ("c.ts", c),
+            ("d.ts", d),
+        ],
+    );
+    assert_eq!(count(&diagnostics, "agent-no-single-use-helper"), 1);
+    let hit = diagnostics
+        .iter()
+        .find(|x| x.rule == "agent-no-single-use-helper")
+        .expect("single-use finding");
+    assert!(hit.message.contains("formatOne"), "got: {}", hit.message);
+}

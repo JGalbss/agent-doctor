@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
+use oxc_ast::ast::ExportDefaultDeclaration;
 use oxc_ast::ast::{
     ArrowFunctionExpression, AssignmentExpression, BinaryExpression, CallExpression, Class,
     ConditionalExpression, DoWhileStatement, Expression, ForInStatement, ForOfStatement,
     ForStatement, Function, IfStatement, ImportDeclaration, ImportExpression, NewExpression,
-    Program, ReturnStatement, StaticMemberExpression, SwitchStatement, TaggedTemplateExpression,
-    ThrowStatement, TryStatement, VariableDeclaration, WhileStatement, YieldExpression,
+    Program, ReturnStatement, StaticMemberExpression, SwitchStatement, TSAnyKeyword,
+    TSAsExpression, TaggedTemplateExpression, ThrowStatement, TryStatement, VariableDeclaration,
+    WhileStatement, YieldExpression,
 };
 use oxc_ast_visit::{walk, Visit};
 use oxc_syntax::scope::ScopeFlags;
@@ -224,6 +226,27 @@ impl<'a> Visit<'a> for Runner {
             rule.on_import(import, &mut self.ctx);
         }
         walk::walk_import_declaration(self, import);
+    }
+
+    fn visit_ts_any_keyword(&mut self, any: &TSAnyKeyword) {
+        for rule in self.rules() {
+            rule.on_ts_any(any.span, &mut self.ctx);
+        }
+        walk::walk_ts_any_keyword(self, any);
+    }
+
+    fn visit_export_default_declaration(&mut self, export: &ExportDefaultDeclaration<'a>) {
+        for rule in self.rules() {
+            rule.on_export_default(export.span, &mut self.ctx);
+        }
+        walk::walk_export_default_declaration(self, export);
+    }
+
+    fn visit_ts_as_expression(&mut self, as_expr: &TSAsExpression<'a>) {
+        for rule in self.rules() {
+            rule.on_ts_as_expression(as_expr, &mut self.ctx);
+        }
+        walk::walk_ts_as_expression(self, as_expr);
     }
 
     fn visit_tagged_template_expression(&mut self, template: &TaggedTemplateExpression<'a>) {

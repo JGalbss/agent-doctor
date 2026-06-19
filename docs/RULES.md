@@ -155,7 +155,19 @@ refactor suggestion, not a violation. All AST-only; fire file-wide in any file i
 | `agent-no-let` | warn | AST | `let`/`var` mutation → `const` + functional construction (reduce/Match/pipeline) |
 | `agent-no-mutation` | warn | AST | reassignment (`x = …`) or in-place payload mutation (`obj.k = …`) → derive the final value once instead of intermediate states |
 | `agent-no-inline-import` | warn | AST | inline `await import(...)` / `require(...)` → hoist to a static top-level `import` (dynamic only for deliberate code-splitting) |
+| `agent-no-any` | warn | AST | `: any` / `as any` / `any[]` → precise type, `unknown` + narrowing, or Schema decode |
+| `agent-no-as-cast` | warn | AST | `expr as T` (except `as const`) → type guard / Schema decode at the boundary |
+| `agent-no-ts-ignore` | warn | AST | `@ts-ignore` / `@ts-expect-error` / `@ts-nocheck` comments → fix the type, don't weaken `strict` |
+| `agent-no-default-export` | warn | AST | `export default` → named export |
+| `agent-no-import-alias` | warn | AST | `import { X as Y }` → import under its real name (effect imports exempt) |
+| `agent-no-namespace-import` | warn | AST | `import * as X` → named bindings (effect's `import * as Effect` exempt) |
+| `agent-no-try-catch` | info | AST | `try/catch` outside `Effect.gen` → typed channel (`Effect.try` + `catchTag`) or `Result` |
+| `agent-no-unbounded-promise-all` | warn | AST | `Promise.all(arr.map(...))` → cap with `p-limit` or `Effect.forEach { concurrency }` |
 | `agent-duplicate-function` | info | AST | two functions in one file with a structurally identical body (renamed copy-paste) → extract a shared helper |
+
+These were mined from the opencode `AGENTS.md` and the Rogo TypeScript conventions; see the
+repo-root `AGENTS.md` for the prose version with sources. They fire only in files importing
+`effect`, default to `warn` (info where noted), and escalate to `error` under `--agent-strict`.
 
 ### Cross-file "this already exists" (engine pass, `--agent`)
 
@@ -170,6 +182,7 @@ location to reuse). All `info` — never scored. `project` detectability: needs 
 | `agent-near-duplicate-function` | info | project | structurally near-identical body (cosine ≥ 0.92) in another file → likely a lightly-edited copy |
 | `agent-similar-function-name` | info | project | same (non-generic) name defined in another file → likely a duplicate implementation |
 | `agent-similar-shape` | info | project | same param count + call set as another function → may accomplish the same goal another way |
+| `agent-no-single-use-helper` | info | project | exported helper imported by exactly one module → inline / co-locate unless it's a real reusable boundary |
 
 ## Scoring surfaces
 

@@ -178,6 +178,7 @@ pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
     }
     if options.agent {
         let mut cross_file = crate::fn_index::cross_file_findings(&functions);
+        cross_file.extend(single_use_findings(&options.root));
         if let Some(filter) = &scope_filter {
             cross_file.retain(|diagnostic| {
                 !filter.lines_only || {
@@ -256,4 +257,28 @@ fn process_file(root: &Path, path: &Path, options: LintOptions) -> Option<FileOu
         diagnostics: analysis.diagnostics,
         functions: analysis.functions,
     })
+}
+
+/// Build the repo-wide symbol graph and emit `agent-no-single-use-helper`
+/// findings — exported helpers imported by exactly one module. Reads each
+/// flagged definition's source line for the diagnostic snippet.
+fn single_use_findings(root: &Path) -> Vec<Diagnostic> {
+    let index = crate::index::Index::build(root);
+    let hits = crate::single_use::analyze(index.graph());
+    let mut sources: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    hits.iter()
+        .map(|hit| {
+            let lines = sources.entry(hit.file.clone()).or_insert_with(|| {
+                fs::read_to_string(root.join(&hit.file))
+                    .map(|text| text.lines().map(str::to_string).collect())
+                    .unwrap_or_default()
+            });
+            let snippet = lines
+                .get(hit.line.saturating_sub(1) as usize)
+                .map(|line| line.trim().to_string())
+                .unwrap_or_default();
+            crate::single_use::to_diagnostic(hit, snippet)
+        })
+        .collect()
 }

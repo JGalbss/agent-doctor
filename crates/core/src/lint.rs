@@ -124,7 +124,7 @@ pub(crate) fn analyze_source(
         true => fn_index::collect_from_program(&parsed.program, source, display_path),
         false => Vec::new(),
     };
-    let ctx = Runner::new(
+    let mut ctx = Runner::new(
         imports,
         options.v4_active,
         options.adopt,
@@ -132,6 +132,15 @@ pub(crate) fn analyze_source(
         options.agent_strict,
     )
     .run(&parsed.program);
+    if agent_active {
+        // `@ts-ignore` etc. live in comments, not AST nodes, so they bypass the
+        // node-visitor rules and are scanned here.
+        ctx.raw.extend(crate::ts_directives::scan(
+            source,
+            &parsed.program.comments,
+            options.agent_strict,
+        ));
+    }
     let diagnostics = finalize(source, display_path, classify_file(display_path), ctx.raw);
     FileAnalysis {
         diagnostics,

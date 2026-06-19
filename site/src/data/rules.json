@@ -768,6 +768,62 @@
     "severity": "warn"
   },
   {
+    "bad": "function parse(input: any): any {\n  return JSON.parse(input)\n}",
+    "category": "Agent hygiene",
+    "good": "const Payload = Schema.Struct({ id: Schema.String })\nconst parse = (input: string) => Schema.decodeUnknownSync(Payload)(input)",
+    "help": "`any` opts out of type checking and silently spreads. Use a precise type, `unknown` + narrowing, or a Schema decode at the boundary. (opencode: \"avoid using the any type\".)",
+    "id": "agent-no-any",
+    "severity": "warn"
+  },
+  {
+    "bad": "import { UsersService as Users } from \"src/users/users.service\"",
+    "category": "Agent hygiene",
+    "good": "import { UsersService } from \"src/users/users.service\"",
+    "help": "Aliasing an import (`import { x as y }`) hides the real name and breaks grep-ability. Import under the original name. (opencode: \"never alias imports\"; effect imports are exempt.)",
+    "id": "agent-no-import-alias",
+    "severity": "warn"
+  },
+  {
+    "bad": "import * as utils from \"./utils\"\nutils.formatCredits(n)",
+    "category": "Agent hygiene",
+    "good": "import { formatCredits } from \"./utils\"\nformatCredits(n)\n// (effect's `import * as Effect from \"effect\"` is exempt)",
+    "help": "Star imports (`import * as x`) pull in the whole module and obscure what's used. Import the named bindings you need. (opencode: \"never use star imports\"; effect's `import * as Effect` idiom is exempt.)",
+    "id": "agent-no-namespace-import",
+    "severity": "warn"
+  },
+  {
+    "bad": "try {\n  return JSON.parse(raw)\n} catch (e) {\n  return null\n}",
+    "category": "Agent hygiene",
+    "good": "const result = Schema.decodeUnknownEither(Payload)(raw)\nreturn Either.getOrNull(result)",
+    "help": "Avoid try/catch where possible — it produces untyped errors and tangled control flow. Model failures in the typed channel (Effect.try/tryPromise + catchTag) or return a Result. (opencode: \"avoid try/catch where possible\".)",
+    "id": "agent-no-try-catch",
+    "severity": "info"
+  },
+  {
+    "bad": "export default function MyComponent() {}",
+    "category": "Agent hygiene",
+    "good": "export function MyComponent() {}",
+    "help": "Default exports rename freely at each import site and resist refactors/auto-import. Use a named export.",
+    "id": "agent-no-default-export",
+    "severity": "warn"
+  },
+  {
+    "bad": "const user = rows[0] as User",
+    "category": "Agent hygiene",
+    "good": "const user = Schema.decodeUnknownSync(User)(rows[0])\n// (`as const` is fine: `const dirs = [\"up\", \"down\"] as const`)",
+    "help": "An `as` cast asserts a type the compiler can't verify, silently hiding mismatches. Narrow with a type guard, or decode with Schema at the boundary instead of casting. (`as const` is fine.)",
+    "id": "agent-no-as-cast",
+    "severity": "warn"
+  },
+  {
+    "bad": "const results = await Promise.all(items.map(processItem)) // unbounded fan-out",
+    "category": "Agent hygiene",
+    "good": "import pLimit from \"p-limit\"\nconst limit = pLimit(8)\nconst results = await Promise.all(items.map((item) => limit(() => processItem(item))))\n// Effect: yield* Effect.forEach(items, processItem, { concurrency: 8 })",
+    "help": "`Promise.all(array.map(...))` fans out the whole list at once — it can exhaust the DB pool, trip rate limits, or cascade one slow dependency. Cap it with p-limit, or use Effect.forEach with an explicit `concurrency`.",
+    "id": "agent-no-unbounded-promise-all",
+    "severity": "warn"
+  },
+  {
     "bad": "const usageBarFill = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageText = (p) => p >= 100 ? red : p >= 80 ? amber : gray // copy-paste",
     "category": "Agent hygiene",
     "good": "const usageTone = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageBarFill = usageTone\nconst usageText = usageTone",
@@ -806,5 +862,21 @@
     "help": "Another function takes the same parameters and calls the same helpers — it may accomplish the same goal by a different route. Check whether one can be derived from or replaced by the other.",
     "id": "agent-similar-shape",
     "severity": "info"
+  },
+  {
+    "bad": "// src/util/format.ts — exported, but only src/ui/Usage.tsx imports it\nexport const formatOne = (n: number) => `${n} cr`",
+    "category": "Agent hygiene",
+    "good": "// inline at the single call site, or co-locate it in Usage.tsx\nconst formatOne = (n: number) => `${n} cr`",
+    "help": "An exported helper imported by exactly one other module is usually premature extraction. Inline it at the call site or co-locate it, unless it hides a genuinely complex boundary or has a clear independent name. (opencode: \"do not extract single-use helpers preemptively\".)",
+    "id": "agent-no-single-use-helper",
+    "severity": "info"
+  },
+  {
+    "bad": "// @ts-ignore\nconst total = sum(values)",
+    "category": "Agent hygiene",
+    "good": "const total = sum(Schema.decodeUnknownSync(Numbers)(values))\n// fix the type rather than silencing the checker",
+    "help": "`@ts-ignore` / `@ts-expect-error` / `@ts-nocheck` silence the type checker and let real errors through. Fix the underlying type, narrow it, or decode with Schema. `strict: true` is on everywhere — don't weaken it.",
+    "id": "agent-no-ts-ignore",
+    "severity": "warn"
   }
 ]

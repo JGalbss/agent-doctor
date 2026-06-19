@@ -420,6 +420,42 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "// both take (id) and call getUser + decode + log — same job, two routes\nexport const loadUser = (id) => { ... }\nexport const fetchUser = (id) => { ... }",
             "// keep one; derive the other or delete it\nexport const loadUser = (id) => Effect.gen(function* () { ... })\nexport const fetchUser = loadUser",
         ),
+        "agent-no-any" => (
+            "function parse(input: any): any {\n  return JSON.parse(input)\n}",
+            "const Payload = Schema.Struct({ id: Schema.String })\nconst parse = (input: string) => Schema.decodeUnknownSync(Payload)(input)",
+        ),
+        "agent-no-import-alias" => (
+            "import { UsersService as Users } from \"src/users/users.service\"",
+            "import { UsersService } from \"src/users/users.service\"",
+        ),
+        "agent-no-namespace-import" => (
+            "import * as utils from \"./utils\"\nutils.formatCredits(n)",
+            "import { formatCredits } from \"./utils\"\nformatCredits(n)\n// (effect's `import * as Effect from \"effect\"` is exempt)",
+        ),
+        "agent-no-try-catch" => (
+            "try {\n  return JSON.parse(raw)\n} catch (e) {\n  return null\n}",
+            "const result = Schema.decodeUnknownEither(Payload)(raw)\nreturn Either.getOrNull(result)",
+        ),
+        "agent-no-default-export" => (
+            "export default function MyComponent() {}",
+            "export function MyComponent() {}",
+        ),
+        "agent-no-as-cast" => (
+            "const user = rows[0] as User",
+            "const user = Schema.decodeUnknownSync(User)(rows[0])\n// (`as const` is fine: `const dirs = [\"up\", \"down\"] as const`)",
+        ),
+        "agent-no-unbounded-promise-all" => (
+            "const results = await Promise.all(items.map(processItem)) // unbounded fan-out",
+            "import pLimit from \"p-limit\"\nconst limit = pLimit(8)\nconst results = await Promise.all(items.map((item) => limit(() => processItem(item))))\n// Effect: yield* Effect.forEach(items, processItem, { concurrency: 8 })",
+        ),
+        "agent-no-single-use-helper" => (
+            "// src/util/format.ts — exported, but only src/ui/Usage.tsx imports it\nexport const formatOne = (n: number) => `${n} cr`",
+            "// inline at the single call site, or co-locate it in Usage.tsx\nconst formatOne = (n: number) => `${n} cr`",
+        ),
+        "agent-no-ts-ignore" => (
+            "// @ts-ignore\nconst total = sum(values)",
+            "const total = sum(Schema.decodeUnknownSync(Numbers)(values))\n// fix the type rather than silencing the checker",
+        ),
         _ => return None,
     };
     Some(RuleExample { bad, good })

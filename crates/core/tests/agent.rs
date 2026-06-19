@@ -153,3 +153,88 @@ fn duplicate_suggestion_stays_info_even_under_strict() {
     // `--agent-strict` escalates warns, but the duplicate suggestion stays info.
     assert_eq!(dup.severity, Severity::Info);
 }
+
+// ─── opencode / Rogo style-guide mined rules ───
+
+#[test]
+fn flags_any_type() {
+    let source = src("export const parse = (input: any): any => JSON.parse(input)\n");
+    // `: any` (param) + `: any` (return) → two findings.
+    assert_fires_agent(&source, "agent-no-any", 2);
+}
+
+#[test]
+fn flags_as_any_too() {
+    let source = src("export const f = (x: unknown) => (x as any).foo\n");
+    assert_fires_agent(&source, "agent-no-any", 1);
+}
+
+#[test]
+fn flags_import_alias_but_not_effect() {
+    let source = src("import { UsersService as Users } from \"./users\"\nexport const u = Users\n");
+    assert_fires_agent(&source, "agent-no-import-alias", 1);
+    // The PRELUDE's `import { Effect, Match } from "effect"` is not aliased and exempt anyway.
+    assert_fires_agent(&source, "agent-no-namespace-import", 0);
+}
+
+#[test]
+fn flags_namespace_import_but_exempts_effect() {
+    let source = format!(
+        "{PRELUDE}import * as utils from \"./utils\"\nimport * as NodeFs from \"effect/platform/FileSystem\"\nexport const x = utils.a\n"
+    );
+    // Only the non-effect star import fires.
+    assert_fires_agent(&source, "agent-no-namespace-import", 1);
+}
+
+#[test]
+fn flags_try_catch_outside_gen() {
+    let source = src("export const f = () => {\n  try {\n    return risky()\n  } catch (e) {\n    return null\n  }\n}\n");
+    assert_fires_agent(&source, "agent-no-try-catch", 1);
+}
+
+#[test]
+fn defers_try_catch_inside_effect_gen() {
+    let source = src("export const f = Effect.gen(function* () {\n  try {\n    return yield* risky()\n  } catch (e) {\n    return null\n  }\n})\n");
+    // no-try-catch-in-gen owns this; the agent rule defers.
+    assert_fires_agent(&source, "agent-no-try-catch", 0);
+}
+
+#[test]
+fn flags_default_export() {
+    let source = src("const value = 1\nexport default value\n");
+    assert_fires_agent(&source, "agent-no-default-export", 1);
+}
+
+#[test]
+fn flags_as_cast_but_not_as_const() {
+    let cast = src("export const u = rows[0] as User\n");
+    assert_fires_agent(&cast, "agent-no-as-cast", 1);
+    let as_const = src("export const dirs = [\"up\", \"down\"] as const\n");
+    assert_fires_agent(&as_const, "agent-no-as-cast", 0);
+}
+
+#[test]
+fn flags_unbounded_promise_all_over_map() {
+    let fanned = src("export const run = (items: number[]) => Promise.all(items.map(process))\n");
+    assert_fires_agent(&fanned, "agent-no-unbounded-promise-all", 1);
+    // A fixed tuple is fine.
+    let tuple = src("export const run = () => Promise.all([fetchUser(), fetchTeam()])\n");
+    assert_fires_agent(&tuple, "agent-no-unbounded-promise-all", 0);
+}
+
+#[test]
+fn flags_ts_ignore_directives() {
+    let source = src("// @ts-ignore\nexport const total = sum(values)\n");
+    assert_fires_agent(&source, "agent-no-ts-ignore", 1);
+}
+
+#[test]
+fn ts_ignore_escalates_under_strict() {
+    let source = src("// @ts-expect-error legacy\nexport const total = sum(values)\n");
+    let strict = lint_agent_strict(&source);
+    let hit = strict
+        .iter()
+        .find(|d| d.rule == "agent-no-ts-ignore")
+        .expect("ts-ignore finding");
+    assert_eq!(hit.severity, Severity::Error);
+}

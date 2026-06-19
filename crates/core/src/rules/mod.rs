@@ -2,7 +2,8 @@ use oxc_ast::ast::{
     ArrowFunctionExpression, AssignmentExpression, BinaryExpression, CallExpression, Class,
     ConditionalExpression, Function, IfStatement, ImportDeclaration, ImportExpression,
     NewExpression, ReturnStatement, Statement, StaticMemberExpression, SwitchStatement,
-    TaggedTemplateExpression, ThrowStatement, TryStatement, VariableDeclaration, YieldExpression,
+    TSAsExpression, TaggedTemplateExpression, ThrowStatement, TryStatement, VariableDeclaration,
+    YieldExpression,
 };
 use oxc_span::Span;
 
@@ -190,6 +191,10 @@ pub trait Rule: Sync {
     fn on_tagged_template(&self, _template: &TaggedTemplateExpression<'_>, _ctx: &mut FileCtx) {}
     fn on_function(&self, _function: &Function<'_>, _ctx: &mut FileCtx) {}
     fn on_arrow(&self, _arrow: &ArrowFunctionExpression<'_>, _ctx: &mut FileCtx) {}
+    /// A `TSAnyKeyword` node (covers `: any`, `as any`, `any[]`, `<any>`).
+    fn on_ts_any(&self, _span: Span, _ctx: &mut FileCtx) {}
+    fn on_export_default(&self, _span: Span, _ctx: &mut FileCtx) {}
+    fn on_ts_as_expression(&self, _as_expr: &TSAsExpression<'_>, _ctx: &mut FileCtx) {}
     fn on_file_end(&self, _ctx: &mut FileCtx) {}
 }
 
@@ -201,6 +206,8 @@ pub fn all_metas() -> Vec<&'static RuleMeta> {
         .iter()
         .flat_map(|rule| rule.metas().iter().copied())
         .chain(crate::fn_index::cross_file_metas().iter().copied())
+        .chain(crate::single_use::metas().iter().copied())
+        .chain(crate::ts_directives::metas().iter().copied())
         .collect()
 }
 
