@@ -168,6 +168,7 @@ refactor suggestion, not a violation. All AST-only; fire file-wide in any file i
 | `agent-no-enum` | warn | AST | TS `enum` → union of string literals / `Schema.Literals` + derived type |
 | `agent-prefer-safe-parse` | warn | AST | `<X>Schema.parse(...)` → `.safeParse()` / decode-to-Either with explicit failure handling |
 | `agent-no-inline-type-import` | warn | AST | `import("...").Foo` type → top-level `import type { Foo }` |
+| `agent-no-export-star` | warn | AST | `export * from "..."` barrel → explicit named re-exports |
 | `agent-no-ts-namespace` | info | AST | TS `namespace` → ES modules + named exports |
 | `agent-no-throw` | info | AST | `throw` outside Effect code → Result/Either or `Effect.fail` a tagged error |
 | `agent-no-delete` | info | AST | `delete obj.k` → build a new object without the key (rest / `Struct.omit`) |

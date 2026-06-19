@@ -504,6 +504,10 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "import { formatCredits } from \"../../../billing/format\"",
             "import { formatCredits } from \"@billing/format\" // path alias\n// or move the shared helper closer to its consumers",
         ),
+        "agent-no-export-star" => (
+            "// index.ts\nexport * from \"./users\"\nexport * from \"./teams\"",
+            "// re-export named bindings explicitly (or import from source)\nexport { UsersService } from \"./users\"\nexport { TeamsService } from \"./teams\"",
+        ),
         "agent-circular-import" => (
             "// user.ts\nimport { teamOf } from \"./team\"\n// team.ts\nimport { ownerOf } from \"./user\" // user ↔ team cycle",
             "// types.ts — shared leaf module, no cycle\nexport interface User {}\nexport interface Team {}\n// user.ts / team.ts both import from \"./types\"",

@@ -920,6 +920,14 @@
     "severity": "info"
   },
   {
+    "bad": "// index.ts\nexport * from \"./users\"\nexport * from \"./teams\"",
+    "category": "Agent hygiene",
+    "good": "// re-export named bindings explicitly (or import from source)\nexport { UsersService } from \"./users\"\nexport { TeamsService } from \"./teams\"",
+    "help": "`export *` barrel re-exports defeat tree-shaking, make the public surface implicit, and invite import cycles. Re-export named bindings explicitly, or have consumers import from the source module. (rogo: \"no barrel imports\".)",
+    "id": "agent-no-export-star",
+    "severity": "warn"
+  },
+  {
     "bad": "const usageBarFill = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageText = (p) => p >= 100 ? red : p >= 80 ? amber : gray // copy-paste",
     "category": "Agent hygiene",
     "good": "const usageTone = (p) => p >= 100 ? red : p >= 80 ? amber : gray\nconst usageBarFill = usageTone\nconst usageText = usageTone",

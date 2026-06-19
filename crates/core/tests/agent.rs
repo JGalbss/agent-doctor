@@ -328,3 +328,9 @@ fn flags_high_complexity() {
     body.push_str("  return r\n}\n");
     assert_fires_agent(&src(&body), "agent-high-complexity", 1);
 }
+
+#[test]
+fn flags_export_star() {
+    let source = format!("{PRELUDE}export * from \"./users\"\nexport const x = 1\n");
+    assert_fires_agent(&source, "agent-no-export-star", 1);
+}

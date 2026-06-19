@@ -9,8 +9,8 @@ use oxc_ast::ast::{
     WhileStatement, YieldExpression,
 };
 use oxc_ast::ast::{
-    ExportDefaultDeclaration, TSEnumDeclaration, TSImportType, TSModuleDeclaration,
-    TSModuleDeclarationKind, TSNonNullExpression, UnaryExpression,
+    ExportAllDeclaration, ExportDefaultDeclaration, TSEnumDeclaration, TSImportType,
+    TSModuleDeclaration, TSModuleDeclarationKind, TSNonNullExpression, UnaryExpression,
 };
 use oxc_ast_visit::{walk, Visit};
 use oxc_syntax::scope::ScopeFlags;
@@ -287,6 +287,13 @@ impl<'a> Visit<'a> for Runner {
             rule.on_unary(unary, &mut self.ctx);
         }
         walk::walk_unary_expression(self, unary);
+    }
+
+    fn visit_export_all_declaration(&mut self, export: &ExportAllDeclaration<'a>) {
+        for rule in self.rules() {
+            rule.on_export_all(export.span, &mut self.ctx);
+        }
+        walk::walk_export_all_declaration(self, export);
     }
 
     fn visit_tagged_template_expression(&mut self, template: &TaggedTemplateExpression<'a>) {

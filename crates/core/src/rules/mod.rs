@@ -204,6 +204,8 @@ pub trait Rule: Sync {
     /// A `TSModuleDeclaration` of `namespace` kind.
     fn on_ts_namespace(&self, _span: Span, _ctx: &mut FileCtx) {}
     fn on_unary(&self, _unary: &UnaryExpression<'_>, _ctx: &mut FileCtx) {}
+    /// An `export * from "..."` re-export.
+    fn on_export_all(&self, _span: Span, _ctx: &mut FileCtx) {}
     fn on_file_end(&self, _ctx: &mut FileCtx) {}
 }
 

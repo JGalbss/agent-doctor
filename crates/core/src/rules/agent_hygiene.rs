@@ -171,6 +171,13 @@ static DELETE_OP: RuleMeta = RuleMeta {
     help: "`delete` mutates an object in place and deoptimizes it. Build a new object without the key (destructure-and-rest, or `Struct.omit`) instead.",
 };
 
+static EXPORT_STAR: RuleMeta = RuleMeta {
+    id: "agent-no-export-star",
+    severity: Severity::Warn,
+    category: Category::AgentHygiene,
+    help: "`export *` barrel re-exports defeat tree-shaking, make the public surface implicit, and invite import cycles. Re-export named bindings explicitly, or have consumers import from the source module. (rogo: \"no barrel imports\".)",
+};
+
 static DEEP_NESTING: RuleMeta = RuleMeta {
     id: "agent-deep-nesting",
     severity: Severity::Warn,
@@ -392,9 +399,21 @@ impl Rule for AgentHygiene {
             &HIGH_COMPLEXITY,
             &TOO_MANY_PARAMS,
             &DEEP_RELATIVE_IMPORT,
+            &EXPORT_STAR,
             &DUPLICATE_FUNCTION,
         ];
         METAS
+    }
+
+    fn on_export_all(&self, span: Span, ctx: &mut FileCtx) {
+        if !ctx.agent_active() {
+            return;
+        }
+        ctx.report_agent(
+            &EXPORT_STAR,
+            keyword_span(span, 6),
+            "`export *` barrel — re-export named bindings explicitly".to_string(),
+        );
     }
 
     fn on_ts_namespace(&self, span: Span, ctx: &mut FileCtx) {
