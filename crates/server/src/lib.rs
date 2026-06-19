@@ -5,6 +5,7 @@
 //! supplies ground truth.
 
 mod dispatch;
+mod mcp;
 
 use std::path::Path;
 
@@ -14,6 +15,7 @@ use agent_doctor_policy::{evaluate, GateInput, LeaseSet, Policy, Violation};
 use serde::Serialize;
 
 pub use dispatch::{handle, serve};
+pub use mcp::serve_mcp;
 
 /// One definition the kernel knows about.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

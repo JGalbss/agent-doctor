@@ -157,6 +157,9 @@ enum Command {
         /// Leases file (default: .agent-doctor/leases.json)
         #[arg(long, default_value = ".agent-doctor/leases.json")]
         leases: PathBuf,
+        /// Speak the Model Context Protocol (MCP) instead of plain JSON
+        #[arg(long)]
+        mcp: bool,
     },
 }
 
@@ -470,11 +473,13 @@ fn merge_exit(clean: bool) -> ExitCode {
     ExitCode::FAILURE
 }
 
-/// `agent-doctor serve` — build the warm kernel and answer JSON queries on stdio.
+/// `agent-doctor serve` — build the warm kernel and answer queries on stdio,
+/// either as plain line-delimited JSON or as an MCP server (`--mcp`).
 fn run_serve(
     root: &std::path::Path,
     policy: &std::path::Path,
     leases: &std::path::Path,
+    mcp: bool,
 ) -> ExitCode {
     let mut kernel = match agent_doctor_server::Kernel::build(root, policy, leases) {
         Ok(kernel) => kernel,
@@ -483,7 +488,11 @@ fn run_serve(
             return ExitCode::from(2);
         }
     };
-    if let Err(error) = agent_doctor_server::serve(&mut kernel) {
+    let result = match mcp {
+        true => agent_doctor_server::serve_mcp(&mut kernel),
+        false => agent_doctor_server::serve(&mut kernel),
+    };
+    if let Err(error) = result {
         eprintln!("agent-doctor serve: {error}");
         return ExitCode::from(2);
     }
@@ -530,7 +539,11 @@ fn main() -> ExitCode {
             output,
             json,
         }) => return run_merge(base, ours, theirs, output.as_deref(), *json),
-        Some(Command::Serve { policy, leases }) => return run_serve(&cli.path, policy, leases),
+        Some(Command::Serve {
+            policy,
+            leases,
+            mcp,
+        }) => return run_serve(&cli.path, policy, leases, *mcp),
         None => {}
     }
     let result = match scan(&ScanOptions {
