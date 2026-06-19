@@ -288,7 +288,9 @@ impl AgentHygiene {
         }
         let Some(body) = body else { return };
         if let Some(shape) = structural::analyze(body, param_count) {
-            ctx.scratch.fn_fingerprints.push((shape.exact_hash, span));
+            ctx.scratch
+                .fn_fingerprints
+                .push((shape.identity_hash(), span));
         }
     }
 }

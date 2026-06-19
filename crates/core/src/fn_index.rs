@@ -180,7 +180,7 @@ fn declarator_function_shape(declarator: &VariableDeclarator) -> Option<(Shape, 
 
 /// Cross-file analysis over the whole repo index → `info` suggestions.
 pub fn cross_file_findings(entries: &[FunctionEntry]) -> Vec<Diagnostic> {
-    let by_exact = group_by(entries, |entry| Some(entry.shape.exact_hash));
+    let by_exact = group_by(entries, |entry| Some(entry.shape.identity_hash()));
     let by_name = group_by(entries, |entry| {
         entry
             .name
@@ -273,7 +273,7 @@ fn exact_partner<'a>(
     index: usize,
     by_exact: &HashMap<u64, Vec<usize>>,
 ) -> Option<&'a FunctionEntry> {
-    let group = by_exact.get(&entries[index].shape.exact_hash)?;
+    let group = by_exact.get(&entries[index].shape.identity_hash())?;
     other_file(entries, index, group)
 }
 
@@ -304,9 +304,10 @@ fn near_partner(entries: &[FunctionEntry], index: usize) -> Option<(&FunctionEnt
         if other_index == index || other.file == me.file {
             continue;
         }
-        // Exact duplicates are reported by the stronger rule; lengths far apart
-        // can't be near-duplicates.
-        if other.shape.exact_hash == me.shape.exact_hash || !lengths_comparable(me, other) {
+        // Exact duplicates (same shape AND call set) are reported by the
+        // stronger rule; lengths far apart can't be near-duplicates.
+        if other.shape.identity_hash() == me.shape.identity_hash() || !lengths_comparable(me, other)
+        {
             continue;
         }
         let score = structural::cosine(&me.shape.histogram, &other.shape.histogram);

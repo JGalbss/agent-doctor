@@ -50,6 +50,19 @@ impl Shape {
         }
         Some(hasher.finish())
     }
+
+    /// Identity for duplicate detection: control-flow shape **and** the set of
+    /// helpers called. Requiring the call set to agree (not just the shape)
+    /// keeps two same-shaped-but-different-operation functions — common in
+    /// libraries of parallel combinators — from being reported as duplicates.
+    pub fn identity_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.exact_hash.hash(&mut hasher);
+        for callee in &self.callees {
+            callee.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
 }
 
 /// Compute the [`Shape`] of a function body, or `None` if it is below the
