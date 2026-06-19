@@ -47,14 +47,38 @@ agent-doctor gate --base main --actor a  # gate the diff vs policy/ACL/leases (d
 agent-doctor merge BASE OURS THEIRS      # semantic (AST) 3-way merge of TypeScript
 ```
 
-**Semantic merge driver** — two agents adding *different* functions to the same file merge
-with zero conflict (vanilla git conflicts on the overlapping lines). Register it with git:
+### Set up in your repo (one command)
 
 ```sh
-git config merge.agentdoctor.name   "agent-doctor semantic merge"
-git config merge.agentdoctor.driver "agent-doctor merge %O %A %B"
-echo '*.ts  merge=agentdoctor' >> .gitattributes
-echo '*.tsx merge=agentdoctor' >> .gitattributes
+agent-doctor init   # scaffolds policy + gitignore + MCP config, registers the merge driver
+```
+
+`init` writes `agent-doctor.policy.toml`, `.agent-doctor/.gitignore` (local state stays
+uncommitted), `.mcp.json` (so an MCP-aware harness loads the kernel's tools), and registers the
+semantic merge driver in git config + `.gitattributes`. Idempotent; `--force` to overwrite.
+
+### Run locally
+
+```sh
+agent-doctor gate --base main --actor me   # gate a diff (deny exits non-zero)
+agent-doctor impact --base main            # tests reaching the diff
+agent-doctor serve                         # context server (line-delimited JSON over stdio)
+agent-doctor serve --mcp                   # same, speaking MCP — point your agent harness here
+```
+
+### Docker (reproducible, no Rust toolchain)
+
+```sh
+docker build -t agent-doctor .
+docker run --rm -v "$PWD:/repo" agent-doctor gate --base main
+docker run --rm -i -v "$PWD:/repo" agent-doctor serve --mcp   # MCP over stdio
+```
+
+The merge driver `init` registers (also settable by hand):
+
+```sh
+git config merge.agent-doctor.driver "agent-doctor merge %O %A %B"
+echo '*.ts  merge=agent-doctor' >> .gitattributes
 ```
 
 **Latency** (`bench/run.sh`, Apple Silicon, release): cold index build scales ~20µs/file

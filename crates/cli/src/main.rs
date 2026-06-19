@@ -161,6 +161,12 @@ enum Command {
         #[arg(long)]
         mcp: bool,
     },
+    /// Scaffold the toolkit in this repo: policy, gitignore, merge driver, MCP config
+    Init {
+        /// Overwrite existing files instead of leaving them untouched
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 fn run_explain(rule_id: &str) -> ExitCode {
@@ -499,6 +505,126 @@ fn run_serve(
     ExitCode::SUCCESS
 }
 
+const STARTER_POLICY: &str = r#"# agent-doctor policy — the deterministic gate for agent diffs.
+# Docs: docs/TOOLKIT.md. Everything here returns facts, never opinions.
+
+# Architectural layers: forbid import edges that cross a boundary.
+# [[layer]]
+# name = "core"
+# path = "src/core/**"
+# forbid_imports_from = ["src/ui/**", "src/app/**"]
+
+# Per-path access control: only these actors may write matching files.
+# [[acl]]
+# glob  = "src/payments/**"
+# allow = ["agent-payments", "human"]
+
+# Files no agent may ever touch.
+[protected]
+globs = ["**/*.gen.ts", "src/db/migrations/**"]
+"#;
+
+const MCP_CONFIG: &str = r#"{
+  "mcpServers": {
+    "agent-doctor": {
+      "command": "agent-doctor",
+      "args": ["serve", "--mcp"]
+    }
+  }
+}
+"#;
+
+const STATE_GITIGNORE: &str = "# agent-doctor local state — do not commit\n*\n!.gitignore\n";
+
+/// `agent-doctor init` — scaffold the toolkit in a repo. Idempotent: existing
+/// files are left untouched unless `--force`.
+fn run_init(root: &std::path::Path, force: bool) -> ExitCode {
+    let p = palette();
+    println!();
+    println!("  {}agent-doctor init{}", p.bold, p.reset);
+    println!();
+
+    write_scaffold(root, "agent-doctor.policy.toml", STARTER_POLICY, force, p);
+    write_scaffold(root, ".agent-doctor/.gitignore", STATE_GITIGNORE, force, p);
+    write_scaffold(root, ".mcp.json", MCP_CONFIG, force, p);
+    ensure_merge_driver(root, p);
+
+    println!();
+    println!("  {}next steps{}", p.bold, p.reset);
+    println!("    • edit {}agent-doctor.policy.toml{} to set your layers/ACLs", p.cyan, p.reset);
+    println!("    • {}agent-doctor gate --base main --actor you{}  — gate a diff", p.dim, p.reset);
+    println!("    • {}agent-doctor impact --base main{}            — tests for a diff", p.dim, p.reset);
+    println!("    • restart your agent harness to load the MCP server (.mcp.json)");
+    println!();
+    ExitCode::SUCCESS
+}
+
+/// Write a scaffolded file, creating parent dirs. Skips existing files unless forced.
+fn write_scaffold(root: &std::path::Path, relative: &str, contents: &str, force: bool, p: &Palette) {
+    let path = root.join(relative);
+    if path.exists() && !force {
+        println!("    {}• {} (exists, skipped){}", p.dim, relative, p.reset);
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match std::fs::write(&path, contents) {
+        Ok(()) => println!("    {}✓{} {}", p.green, p.reset, relative),
+        Err(error) => println!("    {}✗{} {} ({error})", p.red, p.reset, relative),
+    }
+}
+
+/// Register the semantic merge driver in git config + .gitattributes (idempotent).
+fn ensure_merge_driver(root: &std::path::Path, p: &Palette) {
+    let exe = std::env::current_exe()
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|_| "agent-doctor".to_string());
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(args)
+            .output()
+            .map(|out| out.status.success())
+            .unwrap_or(false)
+    };
+    let ok = git(&["config", "merge.agent-doctor.name", "agent-doctor semantic merge"])
+        && git(&[
+            "config",
+            "merge.agent-doctor.driver",
+            &format!("{exe} merge %O %A %B"),
+        ]);
+    if ok {
+        println!("    {}✓{} git merge driver registered", p.green, p.reset);
+    } else {
+        println!("    {}• merge driver: not a git repo (skipped){}", p.dim, p.reset);
+    }
+    append_attributes(root, p);
+}
+
+/// Append the TS merge attributes if not already present.
+fn append_attributes(root: &std::path::Path, p: &Palette) {
+    let path = root.join(".gitattributes");
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut additions = String::new();
+    for line in ["*.ts merge=agent-doctor", "*.tsx merge=agent-doctor"] {
+        if !existing.contains(line) {
+            additions.push_str(line);
+            additions.push('\n');
+        }
+    }
+    if additions.is_empty() {
+        println!("    {}• .gitattributes (merge attrs present){}", p.dim, p.reset);
+        return;
+    }
+    let merged = format!("{existing}{additions}");
+    match std::fs::write(&path, merged) {
+        Ok(()) => println!("    {}✓{} .gitattributes (merge attrs)", p.green, p.reset),
+        Err(error) => println!("    {}✗{} .gitattributes ({error})", p.red, p.reset),
+    }
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match &cli.command {
@@ -544,6 +670,7 @@ fn main() -> ExitCode {
             leases,
             mcp,
         }) => return run_serve(&cli.path, policy, leases, *mcp),
+        Some(Command::Init { force }) => return run_init(&cli.path, *force),
         None => {}
     }
     let result = match scan(&ScanOptions {

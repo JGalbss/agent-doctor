@@ -1,0 +1,6 @@
+target/
+references/
+bench/projects/
+**/node_modules/
+site/dist/
+.agent-doctor/

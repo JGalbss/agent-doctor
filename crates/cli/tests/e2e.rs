@@ -148,6 +148,35 @@ fn merge_driver_auto_resolves_additive_conflict() {
 }
 
 #[test]
+fn init_scaffolds_and_is_idempotent() {
+    let dir = temp_dir("init");
+    init_repo(&dir);
+    let first = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
+    assert!(first.status.success());
+    assert!(dir.join("agent-doctor.policy.toml").exists());
+    assert!(dir.join(".agent-doctor/.gitignore").exists());
+    assert!(dir.join(".mcp.json").exists());
+    assert!(dir.join(".gitattributes").exists());
+
+    // merge driver registered in git config.
+    let driver = Command::new("git")
+        .arg("-C")
+        .arg(&dir)
+        .args(["config", "--get", "merge.agent-doctor.driver"])
+        .output()
+        .unwrap();
+    assert!(driver.status.success() && !driver.stdout.is_empty());
+
+    // second run is idempotent: still succeeds, doesn't duplicate gitattributes.
+    let second = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
+    assert!(second.status.success());
+    let attrs = std::fs::read_to_string(dir.join(".gitattributes")).unwrap();
+    assert_eq!(attrs.matches("*.ts merge=agent-doctor").count(), 1);
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn serve_answers_a_query_over_stdio() {
     let dir = temp_dir("serve");
     write(&dir, "a.ts", "export function foo() { return 1 }\n");
