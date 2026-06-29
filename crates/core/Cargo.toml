@@ -7,8 +7,8 @@ repository.workspace = true
 
 [features]
 default = ["native"]
-# Filesystem walking, git scoping, subprocesses, parallelism. Off for WASM.
-native = ["dep:ignore", "dep:rayon"]
+# Filesystem walking, git scoping, subprocesses, parallelism, config. Off for WASM.
+native = ["dep:ignore", "dep:rayon", "dep:toml"]
 
 [dependencies]
 oxc_allocator.workspace = true
@@ -22,3 +22,4 @@ ignore = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
+toml = { workspace = true, optional = true }

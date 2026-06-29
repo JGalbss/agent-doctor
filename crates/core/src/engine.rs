@@ -148,6 +148,13 @@ fn parse_major(version: &str) -> Option<u32> {
 
 pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
     let started = Instant::now();
+    // agent-doctor.toml can pin tier defaults so a repo's enforcement applies to
+    // everyone (CLI flags still win to enable; config can disable react).
+    let config = crate::config::Config::load(&options.root);
+    let agent_strict = options.agent_strict || config.tiers.agent_strict.unwrap_or(false);
+    let agent = options.agent || agent_strict || config.tiers.agent.unwrap_or(false);
+    let adopt = options.adopt || config.tiers.adopt.unwrap_or(false);
+    let react = options.react && config.tiers.react.unwrap_or(true);
     let effect_major = detect_effect_major(&options.root);
     let v4_active = effect_major == Some(4) || options.migrate;
     let scope_filter = build_scope_filter(options)?;
@@ -160,9 +167,9 @@ pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
         .filter_map(|path| {
             let lint_options = LintOptions {
                 v4_active,
-                adopt: options.adopt,
-                agent: options.agent,
-                agent_strict: options.agent_strict,
+                adopt,
+                agent,
+                agent_strict,
             };
             let mut outcome = process_file(&options.root, path, lint_options)?;
             if let Some(filter) = &scope_filter {
@@ -179,7 +186,7 @@ pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
         diagnostics.extend(outcome.diagnostics);
         functions.extend(outcome.functions);
     }
-    if options.agent {
+    if agent {
         let mut cross_file = crate::fn_index::cross_file_findings(&functions);
         if let Some(filter) = &scope_filter {
             cross_file.retain(|diagnostic| {
@@ -211,7 +218,7 @@ pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
     // React tier: auto-merge react-doctor's full rule set when this looks like a
     // React project. A missing/failing react-doctor is a silent no-op — it must
     // never break the core Effect scan.
-    if options.react && crate::react::detect_react(&options.root) {
+    if react && crate::react::detect_react(&options.root) {
         if let Ok(mut react_diagnostics) = crate::react::run_react_doctor(&options.root) {
             if let Some(filter) = &scope_filter {
                 react_diagnostics.retain(|diagnostic| {
@@ -227,6 +234,15 @@ pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
             diagnostics.extend(react_diagnostics);
         }
     }
+    // Inherit the workspace's TypeScript type setting: flag a non-strict tsconfig
+    // (project-level, so only in a full scan).
+    if scope_filter.is_none() {
+        if let Some(finding) = crate::tsconfig::strict_finding(&options.root) {
+            diagnostics.push(finding);
+        }
+    }
+    // Apply agent-doctor.toml rule overrides (off / pinned severity) before scoring.
+    config.apply(&mut diagnostics);
     diagnostics.sort_by(|a, b| {
         (a.severity, a.rule, a.file.as_str(), a.line).cmp(&(
             b.severity,

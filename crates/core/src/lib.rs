@@ -1,7 +1,10 @@
+#[cfg(feature = "native")]
+mod config;
 mod content_addr;
 #[cfg(feature = "native")]
 mod deep;
 mod diagnostics;
+mod tsconfig;
 mod effect_imports;
 mod file_length;
 #[cfg(feature = "native")]

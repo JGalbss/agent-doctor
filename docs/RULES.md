@@ -201,6 +201,7 @@ for a CI gate.
 | `no-unsafe-double-cast` | warn | AST | `x as Y as Z` / `as unknown as` → decode/validate with `Schema` |
 | `no-empty-catch` | warn | AST | empty `catch {}` swallows failures → handle or model as a typed error |
 | `no-ts-ignore` | warn | comment | `@ts-ignore` / `@ts-expect-error` → fix the underlying type error |
+| `prefer-strict-tsconfig` | warn | project | `tsconfig.json` without `compilerOptions.strict` → enable strict mode (inherited from the workspace's type setting) |
 
 ## Maintainability (always-on)
 

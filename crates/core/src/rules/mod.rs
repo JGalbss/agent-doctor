@@ -220,6 +220,7 @@ pub fn all_metas() -> Vec<&'static RuleMeta> {
         .chain(crate::fn_index::cross_file_metas().iter().copied())
         .chain(crate::file_length::file_length_metas().iter().copied())
         .chain(ts_safety::comment_metas().iter().copied())
+        .chain(crate::tsconfig::tsconfig_metas().iter().copied())
         .collect()
 }
 

@@ -458,6 +458,10 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "try {\n  return JSON.parse(raw)\n} catch {}",
             "Effect.try({\n  try: () => JSON.parse(raw),\n  catch: (cause) => new ParseError({ cause })\n})",
         ),
+        "prefer-strict-tsconfig" => (
+            "// tsconfig.json\n{ \"compilerOptions\": { \"strict\": false } }",
+            "// tsconfig.json\n{ \"compilerOptions\": { \"strict\": true } }",
+        ),
         "no-ts-ignore" => (
             "// @ts-ignore\nconst total = widget.price * qty",
             "const total = widget.price * qty // fix the type of `widget` instead\n// if truly unavoidable: // @ts-expect-error <reason>",

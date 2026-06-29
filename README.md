@@ -23,7 +23,7 @@ agent-doctor <dir>                      # scan everything
 agent-doctor <dir> --verbose --json     # full report / machine-readable
 agent-doctor --scope changed            # only files changed vs main (PR mode)
 agent-doctor --scope lines --base main  # only issues on lines you touched
-agent-doctor rules                      # list all 116 rules
+agent-doctor rules                      # list all 117 rules
 agent-doctor explain no-map-returning-effect   # why + how to rewrite it
 agent-doctor rules --json               # full catalog with rewrite recipes
 agent-doctor --deep                     # merge type-aware @effect/language-service findings
@@ -45,6 +45,28 @@ This mirrors the `--deep` tier: agent-doctor orchestrates react-doctor, it doesn
 it. Install react-doctor so the tier can run (`npm i -D react-doctor`); a missing react-doctor
 is a silent no-op. Opt out per-run with `--no-react`.
 
+## Configuration — `agent-doctor.toml`
+
+Drop an `agent-doctor.toml` at the repo root to pin the enforcement an agent must follow, so
+the same standards apply no matter who runs the linter:
+
+```toml
+# default-on tiers — enable a tier for the whole repo without the CLI flag
+[tiers]
+agent = true        # OOP→Effect + agent-hygiene + conventions always on
+agent_strict = true # escalate those to errors (CI gate)
+# react = false     # opt out of the auto React tier
+
+# per-rule control: "off" | "info" | "warn" | "error"
+[rules]
+no-explicit-any = "error"
+agent-no-default-export = "off"
+```
+
+agent-doctor also **inherits your TypeScript type setting**: it reads `tsconfig.json` and, if
+`compilerOptions.strict` isn't enabled, flags it (`prefer-strict-tsconfig`) — strict mode is
+what makes every other type-safety rule load-bearing.
+
 ## Claude Code plugin
 
 This repo doubles as a Claude Code marketplace. Installing the plugin ships the
@@ -59,7 +81,7 @@ rewrites, search, and category filters. `npm run gen` regenerates its data from
 
 ## Status
 
-Early but real: **116 rules live** across correctness, idiomatic, architecture,
+Early but real: **117 rules live** across correctness, idiomatic, architecture,
 performance, and v4-migration categories — every rule ships with a bad→good rewrite
 recipe (`explain`), and 120+ integration tests cover the catalog (bad patterns fire,
 clean code stays silent; example coverage is test-enforced). Rule sources: the Effect-TS
@@ -104,8 +126,10 @@ is in [docs/RULES.md](docs/RULES.md); architecture and roadmap in
   `any`, non-null `!`, double-casts (`as unknown as`), empty `catch {}`, `@ts-ignore` —
   plus per-function maintainability metrics (too many parameters, deep nesting, high cognitive
   complexity). All `warn`; `--agent-strict` escalates them to a hard CI gate.
-- Planned: suppression comments, config file, editor extension packaging, agent
-  handoff, npm distribution as per-platform binaries.
+- Configuration: `agent-doctor.toml` pins per-rule severity (off/info/warn/error) and
+  default-on tiers; agent-doctor also inherits the workspace `tsconfig.json` strict setting.
+- Planned: suppression comments, editor extension packaging, agent handoff, prebuilt npm
+  binaries for the remaining platforms (darwin-arm64 ships today).
 
 ## Development
 
