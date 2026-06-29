@@ -1,57 +1,49 @@
 ---
 name: agent-doctor
-description: Use the agent-doctor toolkit in this repo to verify a change (gate + impacted tests), pick which tests to run, check whether a helper already exists, and semantic-merge TypeScript. Use before committing or submitting a PR/stack, when deciding which tests cover a change, or when resolving a TS merge conflict.
+description: Use the agent-doctor linter in this repo to check Effect TS / TypeScript for non-idiomatic code and Effect anti-patterns (if/else chains, ternaries, string-equality guards, oversized files, missing yield*). Run it before committing or submitting a PR/stack, or whenever you've written or edited TypeScript.
 ---
 
 # agent-doctor
 
-This repo uses **agent-doctor** — a deterministic toolkit around code changes. Prefer these
-commands over ad-hoc greps or running the whole test suite. Every command returns facts
-(violations, the exact impacted tests), not opinions; respect them.
+This repo uses **agent-doctor** — a fast, deterministic AST-level linter for Effect TS /
+TypeScript. It returns facts (rule violations with locations and a health score), not
+opinions. Prefer it over ad-hoc greps to check whether your changes are idiomatic.
 
-## Before you commit or submit
+## After you write or edit TypeScript
 
-Gate the diff and run only the impacted tests:
-
-```sh
-agent-doctor verify --run "<your test runner, e.g. npx vitest run>"
-```
-
-A non-zero exit means the change is **blocked** — a policy/ACL/lease violation, or a failing
-impacted test. Fix the cause; do not bypass with `--no-verify` unless a human told you to.
-
-## Choose the tests that matter
+Scan your changes before committing:
 
 ```sh
-agent-doctor impact --base main        # the test files that transitively reach your diff
+agent-doctor --scope changed --base main   # only files changed vs main
+agent-doctor --agent-strict                # flag non-Effect agent slop and exit non-zero
 ```
 
-Run those, not the entire suite. If it reports a dynamic-import caveat, also run the
-project's smoke/always-run tests.
+`--agent` flags the patterns LLM agents tend to emit — if/else chains, ternaries,
+string-equality guards (`x === "foo"`), raw loops, `let`, oversized files, and duplicated
+function bodies. `--agent-strict` escalates those to errors so the command exits non-zero
+(a CI / pre-commit gate). Fix the flagged code; don't suppress it unless a human told you to.
 
-## Don't reinvent helpers
-
-Before writing a new function, check whether one already exists. With the context server
-running (`agent-doctor serve --mcp`), call the `symbol_exists` tool with a name; otherwise:
+## Understand a rule
 
 ```sh
-agent-doctor impact --base main --json   # see related/affected files first
+agent-doctor rules                 # list every rule (id, severity, category)
+agent-doctor explain <rule-id>     # what it means + a before/after rewrite recipe
 ```
 
-## Respect the policy
+## Useful flags
 
-`agent-doctor.policy.toml` declares protected paths, architecture layering, and per-path
-ownership (ACLs/leases). A `gate` failure is ground truth — adjust your change, don't edit
-the policy to get around it unless that's the actual task.
+- `--scope changed|lines --base <ref>` — scan only changed files, or only changed lines.
+- `--deep` — also merge the type-aware `@effect/language-service` diagnostics.
+- `--no-react` — skip the React tier (see below).
+- `--json` — machine-readable report (for tooling / CI).
+- `--migrate` — run the Effect v3 → v4 migration audit.
 
-## Resolve TypeScript merge conflicts
+## React projects
 
-The semantic merge driver auto-resolves non-overlapping edits (two functions added to one
-file won't conflict). For a manual 3-way merge of a single file:
+In a React repo (a `react` dependency in package.json), agent-doctor automatically runs
+[react-doctor](https://www.react-doctor.com/)'s full rule set and merges its findings as
+`rd/*` rules — no extra command. Install it so the tier can run: `npm i -D react-doctor`.
 
-```sh
-agent-doctor merge BASE OURS THEIRS --output MERGED
-```
+## Editor diagnostics
 
-A real conflict (both sides edited the same declaration) is reported with markers — resolve
-that declaration specifically.
+`agent-doctor lsp` runs as a language server over stdio for live in-editor diagnostics.

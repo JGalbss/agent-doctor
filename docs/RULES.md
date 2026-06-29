@@ -156,6 +156,7 @@ refactor suggestion, not a violation. All AST-only; fire file-wide in any file i
 | `agent-no-mutation` | warn | AST | reassignment (`x = …`) or in-place payload mutation (`obj.k = …`) → derive the final value once instead of intermediate states |
 | `agent-no-inline-import` | warn | AST | inline `await import(...)` / `require(...)` → hoist to a static top-level `import` (dynamic only for deliberate code-splitting) |
 | `agent-duplicate-function` | info | AST | two functions in one file with a structurally identical body (renamed copy-paste) → extract a shared helper |
+| `agent-max-file-length` | warn | file | file longer than 650 lines → split into focused, single-purpose modules. Import-independent: fires from the engine pass on **every** scanned `.ts`/`.tsx`, not just files importing effect |
 
 ### Cross-file "this already exists" (engine pass, `--agent`)
 
@@ -170,6 +171,17 @@ location to reuse). All `info` — never scored. `project` detectability: needs 
 | `agent-near-duplicate-function` | info | project | structurally near-identical body (cosine ≥ 0.92) in another file → likely a lightly-edited copy |
 | `agent-similar-function-name` | info | project | same (non-generic) name defined in another file → likely a duplicate implementation |
 | `agent-similar-shape` | info | project | same param count + call set as another function → may accomplish the same goal another way |
+
+## React tier (`rd/*`, auto-detected)
+
+When a `react` dependency is present in package.json, agent-doctor runs
+[react-doctor](https://www.react-doctor.com/)'s full rule set (~500 rules across a11y,
+correctness, state-and-effects, react-native, security, design, bundle-size, …) by shelling
+out to its CLI (`react-doctor --json --lint`) and merges the findings as `rd/<rule>` ids in
+the **React** category. Severities map straight through (`error`/`warning`). Like the `--deep`
+tier these ids are runtime-discovered (not in the static catalog / `explain`); react-doctor is
+the source of truth. On by default; `--no-react` skips it, and a missing react-doctor install
+is a silent no-op.
 
 ## Scoring surfaces
 

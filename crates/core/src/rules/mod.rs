@@ -201,6 +201,7 @@ pub fn all_metas() -> Vec<&'static RuleMeta> {
         .iter()
         .flat_map(|rule| rule.metas().iter().copied())
         .chain(crate::fn_index::cross_file_metas().iter().copied())
+        .chain(crate::file_length::file_length_metas().iter().copied())
         .collect()
 }
 

@@ -32,6 +32,9 @@ pub enum Category {
     /// (if/else chains, ternaries, string-equality guards, raw loops, `let`,
     /// duplicated function bodies) that have a cleaner Effect/functional form.
     AgentHygiene,
+    /// React findings merged from react-doctor (its full rule set, run
+    /// automatically when a React project is detected).
+    React,
 }
 
 impl Category {
@@ -45,6 +48,7 @@ impl Category {
             Category::TypeAware => "Type-aware",
             Category::Adoption => "Effect Adoption",
             Category::AgentHygiene => "Agent hygiene",
+            Category::React => "React",
         }
     }
 }

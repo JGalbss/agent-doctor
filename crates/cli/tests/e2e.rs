@@ -1,6 +1,6 @@
 //! End-to-end tests that build and run the actual `agent-doctor` binary against
-//! real git repositories — covering the toolkit subcommands that unit tests
-//! can't reach (process exit codes, the git merge driver, scaffolding).
+//! real files — covering the linter CLI surface that unit tests can't reach
+//! (process exit codes, JSON output, diff scoping over a real git repo).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -43,204 +43,141 @@ fn write(dir: &Path, name: &str, contents: &str) {
 }
 
 #[test]
-fn gate_denies_protected_and_passes_clean() {
-    let dir = temp_dir("gate");
-    init_repo(&dir);
-    write(&dir, "src/app.ts", "export const a = 1\n");
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-qm", "base"]);
-    write(&dir, "src/app.ts", "export const a = 2\n");
-    git(&dir, &["commit", "-qam", "change"]);
-
-    write(&dir, "deny.toml", "[protected]\nglobs = [\"src/app.ts\"]\n");
-    let denied = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["gate", "--base", "HEAD~1", "--policy", "deny.toml"])
-        .output()
-        .unwrap();
-    assert!(!denied.status.success(), "expected non-zero exit on deny");
-
-    write(&dir, "ok.toml", "[protected]\nglobs = [\"other/**\"]\n");
-    let passed = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["gate", "--base", "HEAD~1", "--policy", "ok.toml"])
-        .output()
-        .unwrap();
-    assert!(passed.status.success(), "expected zero exit when clean");
-    std::fs::remove_dir_all(&dir).ok();
+fn rules_lists_catalog_and_json_is_valid() {
+    let out = Command::new(BIN).args(["rules", "--json"]).output().unwrap();
+    assert!(out.status.success(), "rules --json should succeed");
+    let parsed: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(parsed.as_array().is_some_and(|catalog| !catalog.is_empty()));
 }
 
 #[test]
-fn gate_flags_layering_violation() {
-    let dir = temp_dir("layer");
-    init_repo(&dir);
-    write(&dir, "src/ui/button.ts", "export const b = 1\n");
-    write(&dir, "src/core/engine.ts", "export const e = 1\n");
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-qm", "base"]);
-    write(&dir, "src/core/engine.ts", "import { b } from '../ui/button'\nexport const e = b\n");
-    git(&dir, &["commit", "-qam", "bad import"]);
-    write(
-        &dir,
-        "layer.toml",
-        "[[layer]]\nname = \"core\"\npath = \"src/core/**\"\nforbid_imports_from = [\"src/ui/**\"]\n",
-    );
+fn explain_known_rule_succeeds_and_unknown_fails() {
+    let known = Command::new(BIN)
+        .args(["explain", "require-yield-star"])
+        .output()
+        .unwrap();
+    assert!(known.status.success(), "explain of a real rule should succeed");
+
+    let unknown = Command::new(BIN)
+        .args(["explain", "no-such-rule"])
+        .output()
+        .unwrap();
+    assert!(!unknown.status.success(), "explain of an unknown rule should fail");
+}
+
+#[test]
+fn scan_emits_json_report() {
+    let dir = temp_dir("scan-json");
+    write(&dir, "ok.ts", "export const x = 1\n");
     let out = Command::new(BIN)
         .current_dir(&dir)
-        .args(["gate", "--base", "HEAD~1", "--policy", "layer.toml", "--json"])
-        .output()
-        .unwrap();
-    assert!(!out.status.success(), "layering violation must fail the gate");
-    assert!(String::from_utf8_lossy(&out.stdout).contains("layering"));
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn gate_enforces_leases_per_actor() {
-    let dir = temp_dir("lease");
-    init_repo(&dir);
-    write(&dir, "src/auth/login.ts", "export const a = 1\n");
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-qm", "base"]);
-    write(&dir, "src/auth/login.ts", "export const a = 2\n");
-    git(&dir, &["commit", "-qam", "change"]);
-    write(
-        &dir,
-        "leases.json",
-        "{\"leases\":[{\"actor\":\"agent-a\",\"task_id\":\"t1\",\"globs\":[\"src/auth/**\"]}]}",
-    );
-
-    let intruder = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["gate", "--base", "HEAD~1", "--actor", "agent-b", "--leases", "leases.json"])
-        .output()
-        .unwrap();
-    assert!(!intruder.status.success(), "agent-b is outside the lease");
-
-    let owner = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["gate", "--base", "HEAD~1", "--actor", "agent-a", "--leases", "leases.json"])
-        .output()
-        .unwrap();
-    assert!(owner.status.success(), "agent-a owns the region");
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn verify_passes_clean_and_blocks_on_policy() {
-    let dir = temp_dir("verify");
-    init_repo(&dir);
-    write(&dir, "src/a.ts", "export const x = 1\n");
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-qm", "base"]);
-    write(&dir, "src/a.ts", "export const x = 2\n");
-    git(&dir, &["commit", "-qam", "change"]);
-
-    let ok = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["verify", "--base", "HEAD~1"])
-        .output()
-        .unwrap();
-    assert!(ok.status.success(), "clean diff should pass the gate");
-
-    write(&dir, "deny.toml", "[protected]\nglobs = [\"src/a.ts\"]\n");
-    let blocked = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["verify", "--base", "HEAD~1", "--policy", "deny.toml"])
-        .output()
-        .unwrap();
-    assert!(!blocked.status.success(), "policy violation must block verify");
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn merge_driver_auto_resolves_additive_conflict() {
-    let dir = temp_dir("merge");
-    init_repo(&dir);
-    write(&dir, "f.ts", "export function a() { return 1 }\n");
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-qm", "base"]);
-
-    git(&dir, &["checkout", "-q", "-b", "feature"]);
-    write(&dir, "f.ts", "export function a() { return 1 }\nexport function b() { return 2 }\n");
-    git(&dir, &["commit", "-qam", "add b"]);
-    git(&dir, &["checkout", "-q", "main"]);
-    write(&dir, "f.ts", "export function a() { return 1 }\nexport function c() { return 3 }\n");
-    git(&dir, &["commit", "-qam", "add c"]);
-
-    git(&dir, &["config", "merge.ad.name", "agent-doctor"]);
-    git(&dir, &["config", "merge.ad.driver", &format!("{BIN} merge %O %A %B")]);
-    write(&dir, ".gitattributes", "*.ts merge=ad\n");
-    git(&dir, &["add", ".gitattributes"]);
-    git(&dir, &["commit", "-qm", "attrs"]);
-
-    let merged = Command::new("git")
-        .arg("-C")
-        .arg(&dir)
-        .args(["merge", "feature", "-m", "merge"])
-        .output()
-        .unwrap();
-    assert!(merged.status.success(), "additive merge should be clean");
-    let result = std::fs::read_to_string(dir.join("f.ts")).unwrap();
-    assert!(result.contains("function b") && result.contains("function c"));
-    assert!(!result.contains("<<<<<<<"), "no conflict markers");
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn merge_real_conflict_writes_markers_and_exits_nonzero() {
-    let dir = temp_dir("conflict");
-    write(&dir, "base.ts", "export const x = 1\n");
-    write(&dir, "ours.ts", "export const x = 2\n");
-    write(&dir, "theirs.ts", "export const x = 3\n");
-    let out = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["merge", "base.ts", "ours.ts", "theirs.ts", "--output", "out.ts"])
-        .output()
-        .unwrap();
-    assert!(!out.status.success(), "same-decl conflict must fail");
-    assert!(std::fs::read_to_string(dir.join("out.ts")).unwrap().contains("<<<<<<<"));
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn init_scaffolds_and_is_idempotent() {
-    let dir = temp_dir("init");
-    init_repo(&dir);
-    let first = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
-    assert!(first.status.success());
-    assert!(dir.join("agent-doctor.policy.toml").exists());
-    assert!(dir.join(".agent-doctor/.gitignore").exists());
-    assert!(dir.join(".gitattributes").exists());
-
-    let driver = Command::new("git")
-        .arg("-C")
-        .arg(&dir)
-        .args(["config", "--get", "merge.agent-doctor.driver"])
-        .output()
-        .unwrap();
-    assert!(driver.status.success() && !driver.stdout.is_empty());
-
-    let second = Command::new(BIN).current_dir(&dir).arg("init").output().unwrap();
-    assert!(second.status.success());
-    let attrs = std::fs::read_to_string(dir.join(".gitattributes")).unwrap();
-    assert_eq!(attrs.matches("*.ts merge=agent-doctor").count(), 1);
-    std::fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn init_installs_skill_and_hook_with_flags() {
-    let dir = temp_dir("skills");
-    init_repo(&dir);
-    let out = Command::new(BIN)
-        .current_dir(&dir)
-        .args(["init", "--skills", "--hooks"])
+        .args(["--json"])
         .output()
         .unwrap();
     assert!(out.status.success());
-    let skill = dir.join(".claude/skills/agent-doctor/SKILL.md");
-    assert!(skill.exists(), "skill file installed");
-    assert!(std::fs::read_to_string(&skill).unwrap().contains("name: agent-doctor"));
-    assert!(dir.join(".git/hooks/pre-push").exists(), "pre-push hook installed");
-    std::fs::remove_dir_all(&dir).ok();
+    let _: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+}
+
+#[test]
+fn agent_strict_exits_nonzero_on_slop() {
+    let dir = temp_dir("agent-strict");
+    // a string-equality guard + if/else chain — classic non-Effect agent slop.
+    // (the linter only analyzes files that import from `effect`.)
+    write(
+        &dir,
+        "slop.ts",
+        "import { Effect } from \"effect\"\nexport function pick(kind: string) {\n  if (kind === \"a\") { return 1 } else { return 2 }\n}\n",
+    );
+    let out = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["--agent-strict"])
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success(),
+        "--agent-strict must exit non-zero when slop is present"
+    );
+}
+
+#[test]
+fn max_file_length_fires_on_plain_typescript() {
+    let dir = temp_dir("max-len");
+    // 700 lines, no `effect` import — the length rule is import-independent.
+    let body: String = (1..=700).map(|i| format!("export const v{i} = {i}\n")).collect();
+    write(&dir, "big.ts", &body);
+
+    let report = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["--agent", "--json"])
+        .output()
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&report.stdout).unwrap();
+    let fired = parsed["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["rule"] == "agent-max-file-length");
+    assert!(fired, "the length rule should fire on a 700-line file");
+
+    // --agent-strict turns it into a hard failure.
+    let strict = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["--agent-strict"])
+        .output()
+        .unwrap();
+    assert!(!strict.status.success(), "--agent-strict must fail on an oversized file");
+}
+
+#[test]
+fn no_react_flag_skips_the_react_tier() {
+    let dir = temp_dir("no-react");
+    // A React project (react in deps) — the tier would normally auto-run.
+    write(
+        &dir,
+        "package.json",
+        "{ \"name\": \"x\", \"dependencies\": { \"react\": \"^18.0.0\" } }",
+    );
+    write(&dir, "src/App.tsx", "export const App = () => null\n");
+
+    // --no-react must deterministically skip react-doctor: success, no rd/* rules,
+    // regardless of whether react-doctor happens to be installed.
+    let out = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["--no-react", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let parsed: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let react_findings = parsed["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["rule"].as_str().is_some_and(|rule| rule.starts_with("rd/")))
+        .count();
+    assert_eq!(react_findings, 0, "--no-react must not emit rd/* findings");
+}
+
+#[test]
+fn scope_changed_limits_to_diff() {
+    let dir = temp_dir("scope-changed");
+    init_repo(&dir);
+    write(&dir, "clean.ts", "export const x = 1\n");
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "base"]);
+
+    // Add a new file with slop; only it is in the diff vs HEAD.
+    write(
+        &dir,
+        "new.ts",
+        "import { Effect } from \"effect\"\nexport function pick(k: string) {\n  if (k === \"a\") { return 1 } else { return 2 }\n}\n",
+    );
+    let out = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["--scope", "changed", "--base", "HEAD", "--agent-strict"])
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success(),
+        "changed-scope scan should still see the new file's slop"
+    );
 }

@@ -2,11 +2,11 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "agent-doctor",
   "displayName": "agent-doctor",
-  "version": "0.2.0",
-  "description": "Guardrails for coding agents: gate diffs against policy/ACL/leases and semantic-merge TypeScript so concurrent work doesn't conflict. Bundles a skill, slash commands, and a commit-gate hook.",
+  "version": "0.3.0",
+  "description": "A fast Effect TS / TypeScript linter for coding agents: AST-level health checks that flag non-idiomatic code (if/else chains, ternaries, string-equality guards, oversized files) and Effect anti-patterns. Bundles a skill.",
   "author": { "name": "JGalbss", "url": "https://github.com/JGalbss/agent-doctor" },
-  "homepage": "https://effect.doctor/toolkit",
+  "homepage": "https://effect.doctor",
   "repository": "https://github.com/JGalbss/agent-doctor",
   "license": "MIT",
-  "keywords": ["testing", "merge", "policy", "agents", "typescript"]
+  "keywords": ["linter", "effect", "typescript", "agents", "code-quality"]
 }

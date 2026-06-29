@@ -1,15 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "agent-doctor",
-  "description": "The agent-doctor toolkit as a Claude Code plugin.",
+  "description": "The agent-doctor Effect TS / TypeScript linter as a Claude Code plugin.",
   "owner": { "name": "JGalbss", "url": "https://github.com/JGalbss/agent-doctor" },
   "plugins": [
     {
       "name": "agent-doctor",
       "source": "./plugins/agent-doctor",
-      "description": "Gate diffs, select impacted tests, semantic-merge TS, context server (skill + MCP + commands + commit-gate hook).",
+      "description": "Fast AST-level health checks for Effect TS / TypeScript: flag non-idiomatic agent code and Effect anti-patterns (skill included).",
       "category": "code-quality",
-      "keywords": ["testing", "merge", "policy", "agents", "typescript"]
+      "keywords": ["linter", "effect", "typescript", "agents", "code-quality"]
     }
   ]
 }

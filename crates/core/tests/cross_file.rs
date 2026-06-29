@@ -28,6 +28,7 @@ fn scan_with(test: &str, files: &[(&str, &str)], agent: bool) -> Vec<Diagnostic>
         adopt: false,
         agent,
         agent_strict: false,
+        react: false,
     })
     .expect("scan");
     result.diagnostics

@@ -23,10 +23,11 @@ agent-doctor <dir>                      # scan everything
 agent-doctor <dir> --verbose --json     # full report / machine-readable
 agent-doctor --scope changed            # only files changed vs main (PR mode)
 agent-doctor --scope lines --base main  # only issues on lines you touched
-agent-doctor rules                      # list all 101 rules
+agent-doctor rules                      # list all 102 rules
 agent-doctor explain no-map-returning-effect   # why + how to rewrite it
 agent-doctor rules --json               # full catalog with rewrite recipes
 agent-doctor --deep                     # merge type-aware @effect/language-service findings
+agent-doctor --no-react                 # skip the React tier (on by default, see below)
 agent-doctor lsp                        # run as a language server (editor diagnostics)
 agent-doctor --adopt --scope lines      # experimental: vanilla-TS → Effect migration
                                          # recommendations, on exactly your PR's lines
@@ -35,48 +36,20 @@ agent-doctor --agent                    # experimental "agent doctor": flag the 
 agent-doctor --agent-strict             # same, but escalate to errors and exit non-zero (CI gate)
 ```
 
-## Toolkit — guardrails for coding agents
+## React tier — all of react-doctor, automatically
 
-Beyond the linter, agent-doctor adds two deterministic guardrails, deliberately scoped to what
-stays relevant as models improve (gate + semantic merge); it does **not** try to gather context,
-plan, or orchestrate for the agent. Design + rationale: [docs/TOOLKIT.md](docs/TOOLKIT.md).
+When agent-doctor detects a React project (a `react` dependency in package.json), it runs
+[react-doctor](https://www.react-doctor.com/)'s full rule set automatically and merges its
+findings into the report as `rd/*` rules in a **React** category — no flag or config needed.
+This mirrors the `--deep` tier: agent-doctor orchestrates react-doctor, it doesn't reimplement
+it. Install react-doctor so the tier can run (`npm i -D react-doctor`); a missing react-doctor
+is a silent no-op. Opt out per-run with `--no-react`.
 
-```sh
-agent-doctor gate --base main --actor a   # gate the diff vs policy/ACL/leases (deny exits non-zero)
-agent-doctor verify --run "npx vitest run" # gate, then run your tests (pre-push hook / CI)
-agent-doctor merge BASE OURS THEIRS        # semantic (AST) 3-way merge of TypeScript
-```
+## Claude Code plugin
 
-### Set up in your repo
-
-```sh
-agent-doctor init          # interactive walkthrough (shadcn-style)
-agent-doctor init --yes    # accept all recommended options (CI / scripted)
-```
-
-`init` writes `agent-doctor.policy.toml`, `.agent-doctor/.gitignore`, and registers the semantic
-merge driver in git config + `.gitattributes`. In a terminal it then prompts (or use flags) to
-install the **Claude Code skill** (`--skills`) and the **pre-push hook** (`--hooks`). Idempotent;
-`--force` overwrites.
-
-### Conflict-free parallel work
-
-Two agents (or two tickets) editing the same file merge cleanly when they touch different
-declarations — the merge driver `init` registers, also settable by hand:
-
-```sh
-git config merge.agent-doctor.driver "agent-doctor merge %O %A %B"
-echo '*.ts  merge=agent-doctor' >> .gitattributes
-```
-
-For the broader "git is painful for agents" problem (stale branches, juggling two tickets),
-pair this with [jj](https://github.com/jj-vcs/jj) — see [docs/TOOLKIT.md](docs/TOOLKIT.md).
-
-### Graphite / git hooks / CI · Claude Code plugin
-
-`agent-doctor verify` (gate + your tests) wires up as a pre-push hook so it fires on `gt submit`,
-or as a GitHub Action; or install the Claude Code plugin for the skill + commit-gate hook.
-Full setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+This repo doubles as a Claude Code marketplace. Installing the plugin ships the
+**agent-doctor skill** so coding agents run the linter on their own TypeScript before
+committing. Full setup: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 ## Docs site
 
@@ -86,7 +59,7 @@ rewrites, search, and category filters. `npm run gen` regenerates its data from
 
 ## Status
 
-Early but real: **101 rules live** across correctness, idiomatic, architecture,
+Early but real: **102 rules live** across correctness, idiomatic, architecture,
 performance, and v4-migration categories — every rule ships with a bad→good rewrite
 recipe (`explain`), and 120+ integration tests cover the catalog (bad patterns fire,
 clean code stays silent; example coverage is test-enforced). Rule sources: the Effect-TS

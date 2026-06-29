@@ -420,6 +420,10 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "// both take (id) and call getUser + decode + log — same job, two routes\nexport const loadUser = (id) => { ... }\nexport const fetchUser = (id) => { ... }",
             "// keep one; derive the other or delete it\nexport const loadUser = (id) => Effect.gen(function* () { ... })\nexport const fetchUser = loadUser",
         ),
+        "agent-max-file-length" => (
+            "// services.ts — 900 lines: HTTP client, parsing, caching, retries, types\nexport const fetchUser = ...\nexport const parseUser = ...\nexport const cacheLayer = ...\n// ...and 880 more lines",
+            "// split by responsibility, one purpose per module\n// http.ts  — export const fetchUser = ...\n// codec.ts — export const parseUser = ...\n// cache.ts — export const cacheLayer = ...",
+        ),
         _ => return None,
     };
     Some(RuleExample { bad, good })

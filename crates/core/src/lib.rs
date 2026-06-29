@@ -2,9 +2,8 @@ mod content_addr;
 #[cfg(feature = "native")]
 mod deep;
 mod diagnostics;
-#[cfg(feature = "native")]
-mod index;
 mod effect_imports;
+mod file_length;
 #[cfg(feature = "native")]
 mod engine;
 mod examples;
@@ -13,11 +12,12 @@ mod fn_index;
 mod git_scope;
 mod lint;
 mod matchers;
+#[cfg(feature = "native")]
+mod react;
 mod rules;
 mod runner;
 mod score;
 mod structural;
-mod symbol_graph;
 mod text;
 #[cfg(feature = "native")]
 mod walk;
@@ -29,11 +29,6 @@ pub use engine::{detect_effect_major, scan, ScanOptions, ScanResult};
 pub use examples::{example_for, RuleExample};
 #[cfg(feature = "native")]
 pub use git_scope::{collect_diff, resolve_base, DiffInfo, ScanScope};
-#[cfg(feature = "native")]
-pub use index::Index;
 pub use lint::{lint_source, lint_source_opts, lint_source_with, LintOptions};
 pub use rules::{all_metas, RULES};
 pub use score::{compute_score, ScoreReport, SCORE_GOOD_THRESHOLD, SCORE_OK_THRESHOLD};
-pub use symbol_graph::{
-    FileSymbols, ImportEdge, ResolvedEdge, SymbolDef, SymbolGraph, SymbolKind,
-};

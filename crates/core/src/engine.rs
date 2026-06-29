@@ -26,6 +26,9 @@ pub struct ScanOptions {
     pub agent: bool,
     /// Escalate agent-hygiene findings from `warn` to `error`.
     pub agent_strict: bool,
+    /// Auto-run react-doctor and merge its findings when a React project is
+    /// detected. On by default; set false to opt out (`--no-react`).
+    pub react: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -205,6 +208,25 @@ pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
         }
         diagnostics.extend(deep_diagnostics);
     }
+    // React tier: auto-merge react-doctor's full rule set when this looks like a
+    // React project. A missing/failing react-doctor is a silent no-op — it must
+    // never break the core Effect scan.
+    if options.react && crate::react::detect_react(&options.root) {
+        if let Ok(mut react_diagnostics) = crate::react::run_react_doctor(&options.root) {
+            if let Some(filter) = &scope_filter {
+                react_diagnostics.retain(|diagnostic| {
+                    let path = options.root.join(&diagnostic.file);
+                    filter.includes_file(&path)
+                        && (!filter.lines_only || {
+                            filter.relative_path(&path).is_some_and(|relative| {
+                                filter.diff.line_is_changed(&relative, diagnostic.line)
+                            })
+                        })
+                });
+            }
+            diagnostics.extend(react_diagnostics);
+        }
+    }
     diagnostics.sort_by(|a, b| {
         (a.severity, a.rule, a.file.as_str(), a.line).cmp(&(
             b.severity,
@@ -236,24 +258,34 @@ struct FileOutcome {
 
 fn process_file(root: &Path, path: &Path, options: LintOptions) -> Option<FileOutcome> {
     let source = fs::read_to_string(path).ok()?;
-    // Fast pre-filter: every rule today requires an effect import; skip the
-    // parse entirely for files that cannot mention one.
-    if !source.contains("effect") {
-        return Some(FileOutcome {
-            has_effect: false,
-            diagnostics: Vec::new(),
-            functions: Vec::new(),
-        });
-    }
     let display_path = path
         .strip_prefix(root)
         .unwrap_or(path)
         .to_string_lossy()
         .into_owned();
+    // The file-length rule is AST-free and import-independent: a huge module is
+    // a problem whether or not it touches Effect, so it runs on every file
+    // under the --agent family (before the effect-import fast-skip below).
+    let mut length_finding = Vec::new();
+    if options.agent {
+        length_finding
+            .extend(crate::file_length::check(&display_path, &source, options.agent_strict));
+    }
+    // Fast pre-filter: the AST rules all require an effect import; skip the
+    // parse entirely for files that cannot mention one.
+    if !source.contains("effect") {
+        return Some(FileOutcome {
+            has_effect: false,
+            diagnostics: length_finding,
+            functions: Vec::new(),
+        });
+    }
     let analysis = analyze_source(&display_path, &source, options);
+    let mut diagnostics = length_finding;
+    diagnostics.extend(analysis.diagnostics);
     Some(FileOutcome {
         has_effect: true,
-        diagnostics: analysis.diagnostics,
+        diagnostics,
         functions: analysis.functions,
     })
 }

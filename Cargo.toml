@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/cli", "crates/wasm", "crates/policy", "crates/merge"]
+members = ["crates/core", "crates/cli", "crates/wasm"]
 
 [workspace.package]
 version = "0.3.0"
@@ -10,8 +10,6 @@ repository = "https://github.com/JGalbss/agent-doctor"
 
 [workspace.dependencies]
 agent_doctor_core = { path = "crates/core" }
-agent_doctor_policy = { path = "crates/policy" }
-agent_doctor_merge = { path = "crates/merge" }
 
 oxc_allocator = "0.135"
 oxc_parser = "0.135"
