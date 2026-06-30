@@ -43,6 +43,40 @@ fn write(dir: &Path, name: &str, contents: &str) {
 }
 
 #[test]
+fn init_detects_design_system_and_primitives() {
+    let dir = temp_dir("init");
+    // a workspace package that wraps radix + base-ui → the design system.
+    write(
+        &dir,
+        "packages/ui/package.json",
+        r#"{ "name": "@acme/ui", "dependencies": { "@radix-ui/react-select": "*", "@base-ui/react": "*" }, "exports": { "./select": "./select.tsx", "./button": "./button.tsx", "./card": "./card.tsx" } }"#,
+    );
+    // an app that merely consumes radix — not the DS.
+    write(&dir, "apps/web/package.json", r#"{ "name": "web", "dependencies": { "@radix-ui/react-dialog": "*", "class-variance-authority": "*" } }"#);
+
+    let out = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["init", "--yes"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "init --yes should succeed");
+
+    let toml = std::fs::read_to_string(dir.join("agent-doctor.toml")).unwrap();
+    assert!(toml.contains("package = \"@acme/ui\""), "should detect the DS package:\n{toml}");
+    assert!(toml.contains("@radix-ui/"), "should detect radix:\n{toml}");
+    assert!(toml.contains("@base-ui/"), "should detect base-ui:\n{toml}");
+    assert!(toml.contains("class-variance-authority"), "should detect cva:\n{toml}");
+
+    // idempotent: a second run without --force refuses.
+    let second = Command::new(BIN)
+        .current_dir(&dir)
+        .args(["init", "--yes"])
+        .output()
+        .unwrap();
+    assert!(!second.status.success(), "init must not overwrite without --force");
+}
+
+#[test]
 fn rules_lists_catalog_and_json_is_valid() {
     let out = Command::new(BIN).args(["rules", "--json"]).output().unwrap();
     assert!(out.status.success(), "rules --json should succeed");

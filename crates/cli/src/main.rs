@@ -92,6 +92,7 @@ struct Cli {
     no_react: bool,
 }
 
+mod init;
 mod lsp;
 
 #[derive(Subcommand)]
@@ -109,6 +110,16 @@ enum Command {
     },
     /// Run as a language server over stdio (editor diagnostics)
     Lsp,
+    /// Interactive setup: detect your design system + primitive libraries and
+    /// write an agent-doctor.toml (run via `npx @jgalbsss/agent-doctor init`).
+    Init {
+        /// Overwrite an existing agent-doctor.toml
+        #[arg(long)]
+        force: bool,
+        /// Accept detected defaults without prompting (CI / scripted)
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 fn run_explain(rule_id: &str) -> ExitCode {
@@ -208,6 +219,7 @@ fn main() -> ExitCode {
             }
             return ExitCode::SUCCESS;
         }
+        Some(Command::Init { force, yes }) => return init::run(&cli.path, *force, *yes),
         None => {}
     }
     let result = match scan(&ScanOptions {

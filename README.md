@@ -47,8 +47,15 @@ is a silent no-op. Opt out per-run with `--no-react`.
 
 ## Configuration — `agent-doctor.toml`
 
-Drop an `agent-doctor.toml` at the repo root to pin the enforcement an agent must follow, so
-the same standards apply no matter who runs the linter:
+Fastest path is the interactive setup — it detects your design system and the primitive UI
+libraries it wraps (Radix, Base UI, cva, …) and writes the config for you:
+
+```sh
+npx @jgalbsss/agent-doctor init      # walkthrough; --yes to accept detected defaults
+```
+
+Or drop an `agent-doctor.toml` at the repo root by hand to pin the enforcement an agent must
+follow, so the same standards apply no matter who runs the linter:
 
 ```toml
 # default-on tiers — enable a tier for the whole repo without the CLI flag
