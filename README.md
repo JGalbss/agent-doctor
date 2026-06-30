@@ -23,7 +23,7 @@ agent-doctor <dir>                      # scan everything
 agent-doctor <dir> --verbose --json     # full report / machine-readable
 agent-doctor --scope changed            # only files changed vs main (PR mode)
 agent-doctor --scope lines --base main  # only issues on lines you touched
-agent-doctor rules                      # list all 117 rules
+agent-doctor rules                      # list all 118 rules
 agent-doctor explain no-map-returning-effect   # why + how to rewrite it
 agent-doctor rules --json               # full catalog with rewrite recipes
 agent-doctor --deep                     # merge type-aware @effect/language-service findings
@@ -61,11 +61,22 @@ agent_strict = true # escalate those to errors (CI gate)
 [rules]
 no-explicit-any = "error"
 agent-no-default-export = "off"
+
+# enforce the design system: name the package, list the primitives it wraps.
+# the component catalog is auto-discovered from the package's exports.
+[design-system]
+package = "@acme/ui"
+forbid-import-prefixes = ["@radix-ui/", "class-variance-authority", "@mui/"]
 ```
 
 agent-doctor also **inherits your TypeScript type setting**: it reads `tsconfig.json` and, if
 `compilerOptions.strict` isn't enabled, flags it (`prefer-strict-tsconfig`) — strict mode is
 what makes every other type-safety rule load-bearing.
+
+With `[design-system]` set, agent-doctor makes sure agents **use your component library** rather
+than re-reaching for the primitives it wraps — `import … from "@radix-ui/react-select"` is
+flagged in favor of `@acme/ui/select` (`ds-no-banned-import`). The catalog is read from the
+package's `exports`, so there's nothing to keep in sync.
 
 ## Claude Code plugin
 
@@ -81,7 +92,7 @@ rewrites, search, and category filters. `npm run gen` regenerates its data from
 
 ## Status
 
-Early but real: **117 rules live** across correctness, idiomatic, architecture,
+Early but real: **118 rules live** across correctness, idiomatic, architecture,
 performance, and v4-migration categories — every rule ships with a bad→good rewrite
 recipe (`explain`), and 120+ integration tests cover the catalog (bad patterns fire,
 clean code stays silent; example coverage is test-enforced). Rule sources: the Effect-TS
@@ -128,6 +139,9 @@ is in [docs/RULES.md](docs/RULES.md); architecture and roadmap in
   complexity). All `warn`; `--agent-strict` escalates them to a hard CI gate.
 - Configuration: `agent-doctor.toml` pins per-rule severity (off/info/warn/error) and
   default-on tiers; agent-doctor also inherits the workspace `tsconfig.json` strict setting.
+- Design system (opt-in, `[design-system]`): make agents use the project's component library —
+  flags imports of the raw primitives it wraps (`@radix-ui/*` → the DS component). The catalog
+  is auto-discovered from the package's `exports`; no manifest to maintain.
 - Planned: suppression comments, editor extension packaging, agent handoff, prebuilt npm
   binaries for the remaining platforms (darwin-arm64 ships today).
 

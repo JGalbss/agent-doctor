@@ -221,6 +221,7 @@ pub fn all_metas() -> Vec<&'static RuleMeta> {
         .chain(crate::file_length::file_length_metas().iter().copied())
         .chain(ts_safety::comment_metas().iter().copied())
         .chain(crate::tsconfig::tsconfig_metas().iter().copied())
+        .chain(crate::design_system::design_system_metas().iter().copied())
         .collect()
 }
 

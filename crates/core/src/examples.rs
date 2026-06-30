@@ -458,6 +458,10 @@ pub fn example_for(rule: &str) -> Option<RuleExample> {
             "try {\n  return JSON.parse(raw)\n} catch {}",
             "Effect.try({\n  try: () => JSON.parse(raw),\n  catch: (cause) => new ParseError({ cause })\n})",
         ),
+        "ds-no-banned-import" => (
+            "import * as Select from \"@radix-ui/react-select\"",
+            "import { Select } from \"@acme/ui/select\" // use the design-system wrapper",
+        ),
         "prefer-strict-tsconfig" => (
             "// tsconfig.json\n{ \"compilerOptions\": { \"strict\": false } }",
             "// tsconfig.json\n{ \"compilerOptions\": { \"strict\": true } }",

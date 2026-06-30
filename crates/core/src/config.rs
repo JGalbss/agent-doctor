@@ -28,10 +28,24 @@ pub struct TierDefaults {
     pub react: Option<bool>,
 }
 
+/// `[design-system]` block: enable design-system enforcement by naming the
+/// package that *is* the design system. The component catalog is auto-discovered
+/// from that package's `exports`, so there's no manifest to maintain.
+#[derive(Debug, Clone, Deserialize)]
+pub struct DesignSystem {
+    /// The design-system package (e.g. `@acme/ui`). Its `exports` map is the catalog.
+    pub package: String,
+    /// Import sources that should route through the design system instead
+    /// (e.g. `@radix-ui/`, `class-variance-authority`). Prefix match.
+    #[serde(default, rename = "forbid-import-prefixes")]
+    pub forbid_import_prefixes: Vec<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct Config {
     rules: HashMap<String, RuleSetting>,
     pub tiers: TierDefaults,
+    pub design_system: Option<DesignSystem>,
 }
 
 #[derive(Deserialize, Default)]
@@ -40,6 +54,8 @@ struct RawConfig {
     rules: HashMap<String, String>,
     #[serde(default)]
     tiers: TierDefaults,
+    #[serde(default, rename = "design-system")]
+    design_system: Option<DesignSystem>,
 }
 
 fn parse_setting(value: &str) -> Option<RuleSetting> {
@@ -69,6 +85,7 @@ impl Config {
         Config {
             rules,
             tiers: raw.tiers,
+            design_system: raw.design_system,
         }
     }
 

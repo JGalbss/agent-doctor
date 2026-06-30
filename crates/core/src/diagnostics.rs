@@ -45,6 +45,9 @@ pub enum Category {
     /// Maintainability metrics — oversized functions, too many parameters, deep
     /// nesting, high cognitive complexity.
     Maintainability,
+    /// Design-system enforcement — use the project's component library instead of
+    /// raw elements / bypassing it with the underlying primitive libraries.
+    DesignSystem,
 }
 
 impl Category {
@@ -62,6 +65,7 @@ impl Category {
             Category::OopToEffect => "OOP → Effect",
             Category::TypeSafety => "Type safety",
             Category::Maintainability => "Maintainability",
+            Category::DesignSystem => "Design system",
         }
     }
 }

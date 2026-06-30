@@ -220,6 +220,24 @@ Per-function metrics that turn the score into a real maintainability grade. Alwa
 |---|---|---|---|
 | `agent-no-default-export` | warn | AST | `export default` → named export (stable identity, refactor-friendly) |
 
+## Design system (`ds-*`, opt-in via config)
+
+Make agents *use* the project's component library instead of bypassing it. Enabled by a
+`[design-system]` block in `agent-doctor.toml` that names the package — the component catalog
+is auto-discovered from that package's `exports` (no manifest to maintain). Self-contained
+engine pass over every `.ts`/`.tsx`; zero-cost when not configured. The design-system package's
+own source is exempt.
+
+```toml
+[design-system]
+package = "@acme/ui"
+forbid-import-prefixes = ["@radix-ui/", "class-variance-authority", "@mui/"]
+```
+
+| id | sev | det | summary |
+|---|---|---|---|
+| `ds-no-banned-import` | warn | AST | importing a primitive lib the design system already wraps (e.g. `@radix-ui/react-select`) → import from the DS (`@acme/ui/select`) |
+
 ## React tier (`rd/*`, auto-detected)
 
 When a `react` dependency is present in package.json, agent-doctor runs

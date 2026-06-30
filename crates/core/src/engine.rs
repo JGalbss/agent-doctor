@@ -234,6 +234,15 @@ pub fn scan(options: &ScanOptions) -> Result<ScanResult, String> {
             diagnostics.extend(react_diagnostics);
         }
     }
+    // Design-system enforcement: when configured, flag imports that bypass the
+    // design system. Self-contained pass over the (scope-filtered) file set.
+    if let Some(design_system) = &config.design_system {
+        diagnostics.extend(crate::design_system::run(
+            &options.root,
+            design_system,
+            &files,
+        ));
+    }
     // Inherit the workspace's TypeScript type setting: flag a non-strict tsconfig
     // (project-level, so only in a full scan).
     if scope_filter.is_none() {

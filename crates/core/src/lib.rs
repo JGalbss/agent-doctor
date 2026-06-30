@@ -3,6 +3,7 @@ mod config;
 mod content_addr;
 #[cfg(feature = "native")]
 mod deep;
+mod design_system;
 mod diagnostics;
 mod tsconfig;
 mod effect_imports;
